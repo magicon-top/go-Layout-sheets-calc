@@ -140,7 +140,7 @@ const indexHTML = `<!DOCTYPE html>
 </head>
 <body>
     <div class="titlebar" id="titleBar">
-        <div class="titlebar-title">barcodes.MagicON.Top EPS Barcode Generator by Levchuk V.N. +380-96-555-55-11</div>
+        <div class="titlebar-title">Layout-sheets-calc.MagicON.Top by Levchuk V.N. </div>
         <div class="titlebar-controls">
             <button class="titlebar-btn close" onclick="closeApp()" title="Close Application">
                 <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -413,7 +413,7 @@ func main() {
 		baseDir := filepath.Dir(execDir)
 		splashPath := filepath.Join(baseDir, "settings", "splash.exe")
 		if _, err := os.Stat(splashPath); err == nil {
-			cmd := exec.Command(splashPath, "1000")
+			cmd := exec.Command(splashPath, "500")
 			cmd.Dir = filepath.Join(baseDir, "settings")
 			_ = cmd.Start()
 		}
