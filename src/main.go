@@ -5,22 +5,22 @@ package main
 
 //________________________________________________________
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"math"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
-	"syscall"
-	"time"
-	"unsafe"
+    "bytes"
+    "encoding/json"
+    "fmt"
+    "math"
+    "net/http"
+    "os"
+    "os/exec"
+    "path/filepath"
+    "runtime"
+    "strconv"
+    "strings"
+    "syscall"
+    "time"
+    "unsafe"
 
-	webview "github.com/jchv/go-webview2"
+    webview "github.com/jchv/go-webview2"
 )
 
 //________________________________________________________
@@ -31,35 +31,35 @@ type State int32
 
 //________________________________________________________
 type CalcRequest struct {
-	OvershootPct float64 `json:"overshoot"`
-	Capacity     int     `json:"capacity"`
-	Orders       string  `json:"orders"`
+    OvershootPct float64 `json:"overshoot"`
+    Capacity     int     `json:"capacity"`
+    Orders       string  `json:"orders"`
 }
 
 //________________________________________________________
 type ItemReport struct {
-	ID        int     `json:"id"`
-	Target    int     `json:"target"`
-	Produced  int     `json:"produced"`
-	Overshoot float64 `json:"overshoot"`
-	SlotsStr  string  `json:"slots_str"`
-	SlotsList []int   `json:"slots_list"`
+    ID         int     `json:"id"`
+    Target     int     `json:"target"`
+    Produced   int     `json:"produced"`
+    Overshoot  float64 `json:"overshoot"`
+    SlotsStr   string  `json:"slots_str"`
+    SlotsList  []int   `json:"slots_list"`
 }
 
 //________________________________________________________
 type CalcResponse struct {
-	Success            bool         `json:"success"`
-	Message            string       `json:"message"`
-	TotalSheets        int          `json:"total_sheets"`
-	TotalForms         int          `json:"total_forms"`
-	Forms              []int        `json:"forms"`
-	ItemReports        []ItemReport `json:"item_reports"`
-	TotalOrdered       int          `json:"total_ordered"`
-	TotalProduced      int          `json:"total_produced"`
-	TotalOvershoot     float64      `json:"total_overshoot"`
-	PrintCodes         []string     `json:"print_codes"`
-	FormNames          []string     `json:"form_names"`
-	UpdatedOvershoot   float64      `json:"updated_overshoot"`
+    Success            bool         `json:"success"`
+    Message            string       `json:"message"`
+    TotalSheets        int          `json:"total_sheets"`
+    TotalForms         int          `json:"total_forms"`
+    Forms              []int        `json:"forms"`
+    ItemReports        []ItemReport `json:"item_reports"`
+    TotalOrdered       int          `json:"total_ordered"`
+    TotalProduced      int          `json:"total_produced"`
+    TotalOvershoot     float64      `json:"total_overshoot"`
+    PrintCodes         []string     `json:"print_codes"`
+    FormNames          []string     `json:"form_names"`
+    UpdatedOvershoot   float64      `json:"updated_overshoot"`
 }
 
 //________________________________________________________
@@ -133,7 +133,7 @@ const indexHTML = `<!DOCTYPE html>
         .overshoot.good { color: #28a745; }
 
         .quantity-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-        .quantity-chip { background-color: #2d2d2d; color: #ffffff; padding: 2px 4px; border-radius: 4px; min-width: 24px; text-align: center; font-size: 15px; font-weight: 600; display: inline-block; box-sizing: border-box; }
+        .quantity-chip { background-color: #2d2d2d; color: #ffffff; padding: 2px 4px; border-radius: 4px; min-width: 36px; text-align: center; font-size: 15px; font-weight: 600; display: inline-block; box-sizing: border-box; }
 
         .error { color: #dc3545; font-weight: bold; padding: 10px; background: #ffe6e6; border-radius: 4px; display: none; margin-top: 8px; width: 100%; box-sizing: border-box; font-size: 15px; }
     </style>
@@ -356,611 +356,608 @@ const indexHTML = `<!DOCTYPE html>
 </html>`
 
 type FormBlock struct {
-	FormName string `json:"form_name"`
-	CodeLine string `json:"code_line"`
+    FormName string `json:"form_name"`
+    CodeLine string `json:"code_line"`
 }
 
 type ExtendedCalcResponse struct {
-	CalcResponse
-	FormBlocks []FormBlock `json:"form_blocks"`
+    CalcResponse
+    FormBlocks []FormBlock `json:"form_blocks"`
 }
 
 type MoveRequest struct {
-	Dx int `json:"dx"`
-	Dy int `json:"dy"`
+    Dx int `json:"dx"`
+    Dy int `json:"dy"`
 }
 
 //________________________________________________________
 // Sets application window icon from settings/logo.png file on disk
 func setIconFromPNGFile(hwnd uintptr, pngPath string) {
-	if runtime.GOOS != "windows" {
-		return
-	}
+    if runtime.GOOS != "windows" {
+        return
+    }
 
-	pngData, err := os.ReadFile(pngPath)
-	if err != nil {
-		return
-	}
+    pngData, err := os.ReadFile(pngPath)
+    if err != nil {
+        return
+    }
 
-	size := len(pngData)
-	header := []byte{0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 32, 0, byte(size), byte(size >> 8), byte(size >> 16), byte(size >> 24), 22, 0, 0, 0}
-	icoPath := filepath.Join(os.TempDir(), fmt.Sprintf("temp_logo_%d.ico", time.Now().UnixNano()))
-	if err := os.WriteFile(icoPath, append(header, pngData...), 0644); err != nil {
-		return
-	}
-	defer os.Remove(icoPath)
+    size := len(pngData)
+    header := []byte{0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 32, 0, byte(size), byte(size >> 8), byte(size >> 16), byte(size >> 24), 22, 0, 0, 0}
+    icoPath := filepath.Join(os.TempDir(), fmt.Sprintf("temp_logo_%d.ico", time.Now().UnixNano()))
+    if err := os.WriteFile(icoPath, append(header, pngData...), 0644); err != nil {
+        return
+    }
+    defer os.Remove(icoPath)
 
-	user32 := syscall.NewLazyDLL("user32.dll")
-	loadImage := user32.NewProc("LoadImageW")
-	sendMessage := user32.NewProc("SendMessageW")
+    user32 := syscall.NewLazyDLL("user32.dll")
+    loadImage := user32.NewProc("LoadImageW")
+    sendMessage := user32.NewProc("SendMessageW")
 
-	pathPtr, _ := syscall.UTF16PtrFromString(icoPath)
-	hIcon, _, _ := loadImage.Call(0, uintptr(unsafe.Pointer(pathPtr)), 1, 0, 0, 0x00000010)
-	if hIcon == 0 {
-		return
-	}
+    pathPtr, _ := syscall.UTF16PtrFromString(icoPath)
+    hIcon, _, _ := loadImage.Call(0, uintptr(unsafe.Pointer(pathPtr)), 1, 0, 0, 0x00000010)
+    if hIcon == 0 {
+        return
+    }
 
-	const WM_SETICON = 0x0080
-	sendMessage.Call(hwnd, WM_SETICON, 0, hIcon)
-	sendMessage.Call(hwnd, WM_SETICON, 1, hIcon)
+    const WM_SETICON = 0x0080
+    sendMessage.Call(hwnd, WM_SETICON, 0, hIcon)
+    sendMessage.Call(hwnd, WM_SETICON, 1, hIcon)
 }
 
 //________________________________________________________
 // Main application entry point
 func main() {
-	execDir, err := os.Executable()
-	if err == nil {
-		baseDir := filepath.Dir(execDir)
-		splashPath := filepath.Join(baseDir, "settings", "splash.exe")
-		if _, err := os.Stat(splashPath); err == nil {
-			cmd := exec.Command(splashPath, "500")
-			cmd.Dir = filepath.Join(baseDir, "settings")
-			_ = cmd.Start()
-		}
-	}
+    execDir, err := os.Executable()
+    if err == nil {
+        baseDir := filepath.Dir(execDir)
+        splashPath := filepath.Join(baseDir, "settings", "splash.exe")
+        if _, err := os.Stat(splashPath); err == nil {
+            cmd := exec.Command(splashPath, "500")
+            cmd.Dir = filepath.Join(baseDir, "settings")
+            _ = cmd.Start()
+        }
+    }
 
-	go func() {
-		http.HandleFunc("/", serveUI)
-		http.HandleFunc("/api/calculate", handleCalc)
-		http.HandleFunc("/api/close", handleClose)
-		http.HandleFunc("/api/move", handleMove)
-		if err := http.ListenAndServe(serverPort, nil); err != nil {
-			fmt.Printf("Server error: %v\n", err)
-		}
-	}()
+    go func() {
+        http.HandleFunc("/", serveUI)
+        http.HandleFunc("/api/calculate", handleCalc)
+        http.HandleFunc("/api/close", handleClose)
+        http.HandleFunc("/api/move", handleMove)
+        _ = http.ListenAndServe(serverPort, nil)
+    }()
 
-	time.Sleep(200 * time.Millisecond)
+    time.Sleep(200 * time.Millisecond)
 
-	w := webview.New(false)
-	defer w.Destroy()
+    w := webview.New(false)
+    defer w.Destroy()
 
-	w.SetTitle("Layout-sheets-calc")
-	//w.SetSize(562, 768, webview.HintNone)
+    w.SetTitle("Layout-sheets-calc")
 
-	setupFramelessWindow(w)
+    setupFramelessWindow(w)
 
-	var logoPath string
-	if err == nil {
-		logoPath = filepath.Join(filepath.Dir(execDir), "settings", "logo.png")
-	} else {
-		logoPath = filepath.Join("settings", "logo.png")
-	}
-	setIconFromPNGFile(uintptr(w.Window()), logoPath)
+    var logoPath string
+    if err == nil {
+        logoPath = filepath.Join(filepath.Dir(execDir), "settings", "logo.png")
+    } else {
+        logoPath = filepath.Join("settings", "logo.png")
+    }
+    setIconFromPNGFile(uintptr(w.Window()), logoPath)
 
-	w.Bind("startDrag", func() { dragWindow(w) })
-	w.Bind("updateWindowRegion", func() { updateRoundedRegion(w) })
-	w.Bind("closeAppNative", func() {
-		w.Destroy()
-		os.Exit(0)
-	})
+    w.Bind("startDrag", func() { dragWindow(w) })
+    w.Bind("updateWindowRegion", func() { updateRoundedRegion(w) })
+    w.Bind("closeAppNative", func() {
+        w.Destroy()
+        os.Exit(0)
+    })
 
-	w.Navigate("http://localhost" + serverPort)
-	w.Run()
+    w.Navigate("http://localhost" + serverPort)
+    w.Run()
 }
 
 //________________________________________________________
 // Native WebView2 frameless resizable window setup
 func setupFramelessWindow(w webview.WebView) {
-	if runtime.GOOS != "windows" {
-		return
-	}
+    if runtime.GOOS != "windows" {
+        return
+    }
     hwnd := uintptr(w.Window())
-	user32 := syscall.NewLazyDLL("user32.dll")
+    user32 := syscall.NewLazyDLL("user32.dll")
 
-	setWindowLongPtr := user32.NewProc("SetWindowLongPtrW")
-	if setWindowLongPtr.Find() != nil {
-		setWindowLongPtr = user32.NewProc("SetWindowLongA")
-	}
-	getWindowLongPtr := user32.NewProc("GetWindowLongPtrW")
-	if getWindowLongPtr.Find() != nil {
-		getWindowLongPtr = user32.NewProc("GetWindowLongA")
-	}
+    setWindowLongPtr := user32.NewProc("SetWindowLongPtrW")
+    if setWindowLongPtr.Find() != nil {
+        setWindowLongPtr = user32.NewProc("SetWindowLongA")
+    }
+    getWindowLongPtr := user32.NewProc("GetWindowLongPtrW")
+    if getWindowLongPtr.Find() != nil {
+        getWindowLongPtr = user32.NewProc("GetWindowLongA")
+    }
 
-	const GWL_STYLE = 0xFFFFFFF0
-	const WS_POPUP = 0x80000000
-	const WS_THICKFRAME = 0x00040000
-	const WS_SYSMENU = 0x00080000
-	const WS_MAXIMIZEBOX = 0x00010000
-	const WS_MINIMIZEBOX = 0x00020000
+    const GWL_STYLE = 0xFFFFFFF0
+    const WS_POPUP = 0x80000000
+    const WS_THICKFRAME = 0x00040000
+    const WS_SYSMENU = 0x00080000
+    const WS_MAXIMIZEBOX = 0x00010000
+    const WS_MINIMIZEBOX = 0x00020000
 
-	style, _, _ := getWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE))
-	newStyle := (style &^ 0x00C00000) | WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX
-	setWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE), newStyle)
+    style, _, _ := getWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE))
+    newStyle := (style &^ 0x00C00000) | WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX
+    setWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE), newStyle)
 
-	updateRoundedRegion(w)
+    updateRoundedRegion(w)
 }
 
 //________________________________________________________
 // Updates rounded window shape region according to current window size
 func updateRoundedRegion(w webview.WebView) {
-	if runtime.GOOS != "windows" {
-		return
-	}
-	hwnd := uintptr(w.Window())
-	user32 := syscall.NewLazyDLL("user32.dll")
-	gdi32 := syscall.NewLazyDLL("gdi32.dll")
-	createRoundRectRgn := gdi32.NewProc("CreateRoundRectRgn")
-	setWindowRgn := user32.NewProc("SetWindowRgn")
-	getWindowRect := user32.NewProc("GetWindowRect")
+    if runtime.GOOS != "windows" {
+        return
+    }
+    hwnd := uintptr(w.Window())
+    user32 := syscall.NewLazyDLL("user32.dll")
+    gdi32 := syscall.NewLazyDLL("gdi32.dll")
+    createRoundRectRgn := gdi32.NewProc("CreateRoundRectRgn")
+    setWindowRgn := user32.NewProc("SetWindowRgn")
+    getWindowRect := user32.NewProc("GetWindowRect")
 
-	type rect struct {
-		Left, Top, Right, Bottom int32
-	}
-	var rObj rect
-	getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
+    type rect struct {
+        Left, Top, Right, Bottom int32
+    }
+    var rObj rect
+    getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
 
-	width := int(rObj.Right - rObj.Left)
-	height := int(rObj.Bottom - rObj.Top)
+    width := int(rObj.Right - rObj.Left)
+    height := int(rObj.Bottom - rObj.Top)
 
-	hrgn, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width), uintptr(height), 16, 16)
-	if hrgn != 0 {
-		setWindowRgn.Call(hwnd, hrgn, 1)
-	}
+    hrgn, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width), uintptr(height), 16, 16)
+    if hrgn != 0 {
+        setWindowRgn.Call(hwnd, hrgn, 1)
+    }
 }
 
 //________________________________________________________
 // Native OS drag logic via Win32 API
 func dragWindow(w webview.WebView) {
-	if runtime.GOOS != "windows" {
-		return
-	}
-	hwnd := uintptr(w.Window())
-	user32 := syscall.NewLazyDLL("user32.dll")
-	releaseCapture := user32.NewProc("ReleaseCapture")
-	sendMessage := user32.NewProc("SendMessageW")
+    if runtime.GOOS != "windows" {
+        return
+    }
+    hwnd := uintptr(w.Window())
+    user32 := syscall.NewLazyDLL("user32.dll")
+    releaseCapture := user32.NewProc("ReleaseCapture")
+    sendMessage := user32.NewProc("SendMessageW")
 
-	const WM_NCLBUTTONDOWN = 0x00A1
-	const HTCAPTION = 2
+    const WM_NCLBUTTONDOWN = 0x00A1
+    const HTCAPTION = 2
 
-	releaseCapture.Call()
-	sendMessage.Call(hwnd, WM_NCLBUTTONDOWN, uintptr(HTCAPTION), 0)
+    releaseCapture.Call()
+    sendMessage.Call(hwnd, WM_NCLBUTTONDOWN, uintptr(HTCAPTION), 0)
 }
 
 //________________________________________________________
 // Serves main HTML UI
 func serveUI(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(indexHTML))
+    w.Header().Set("Content-Type", "text/html; charset=utf-8")
+    w.Write([]byte(indexHTML))
 }
 
 //________________________________________________________
 // Handles application shutdown request
 func handleClose(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"success":true}`))
-	go func() {
-		time.Sleep(100 * time.Millisecond)
-		os.Exit(0)
-	}()
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte(`{"success":true}`))
+    go func() {
+        time.Sleep(100 * time.Millisecond)
+        os.Exit(0)
+    }()
 }
 
 //________________________________________________________
 // Legacy HTTP drag API
 func handleMove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
 
-	var req MoveRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
-		return
-	}
+    var req MoveRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
+        return
+    }
 
-	if runtime.GOOS == "windows" {
-		user32 := syscall.NewLazyDLL("user32.dll")
-		getForegroundWindow := user32.NewProc("GetForegroundWindow")
-		getWindowRect := user32.NewProc("GetWindowRect")
-		setWindowPos := user32.NewProc("SetWindowPos")
+    if runtime.GOOS == "windows" {
+        user32 := syscall.NewLazyDLL("user32.dll")
+        getForegroundWindow := user32.NewProc("GetForegroundWindow")
+        getWindowRect := user32.NewProc("GetWindowRect")
+        setWindowPos := user32.NewProc("SetWindowPos")
 
-		hwnd, _, _ := getForegroundWindow.Call()
-		if hwnd != 0 {
-			type rect struct {
-				Left, Top, Right, Bottom int32
-			}
-			var rObj rect
-			getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
+        hwnd, _, _ := getForegroundWindow.Call()
+        if hwnd != 0 {
+            type rect struct {
+                Left, Top, Right, Bottom int32
+            }
+            var rObj rect
+            getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
 
-			const swpNoSize = 0x0001
-			const swpNoZOrder = 0x0004
-			const swpFrameChanged = 0x0020
+            const swpNoSize = 0x0001
+            const swpNoZOrder = 0x0004
+            const swpFrameChanged = 0x0020
 
-			newX := int(rObj.Left) + req.Dx
-			newY := int(rObj.Top) + req.Dy
+            newX := int(rObj.Left) + req.Dx
+            newY := int(rObj.Top) + req.Dy
 
-			setWindowPos.Call(hwnd, 0, uintptr(newX), uintptr(newY), 0, 0, uintptr(swpNoSize|swpNoZOrder|swpFrameChanged))
-		}
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"success":true}`))
+            setWindowPos.Call(hwnd, 0, uintptr(newX), uintptr(newY), 0, 0, uintptr(swpNoSize|swpNoZOrder|swpFrameChanged))
+        }
+    }
+    w.WriteHeader(http.StatusOK)
+    w.Write([]byte(`{"success":true}`))
 }
 
 //________________________________________________________
 // Handles layout calculation API endpoint
 func handleCalc(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
 
-	var req CalcRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
-		return
-	}
+    var req CalcRequest
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
+        return
+    }
 
-	parts := strings.Fields(req.Orders)
-	var orders []int
-	for _, p := range parts {
-		qty, err := strconv.Atoi(p)
-		if err == nil {
-			orders = append(orders, qty)
-		}
-	}
+    parts := strings.Fields(req.Orders)
+    var orders []int
+    for _, p := range parts {
+        qty, err := strconv.Atoi(p)
+        if err == nil {
+            orders = append(orders, qty)
+        }
+    }
 
-	if len(orders) == 0 {
-		sendJSON(w, CalcResponse{Success: false, Message: "No valid orders found."})
-		return
-	}
+    if len(orders) == 0 {
+        sendJSON(w, CalcResponse{Success: false, Message: "No valid orders found."})
+        return
+    }
 
-	totalSum := 0
-	for _, o := range orders {
-		totalSum += o
-	}
-	minSheets := int(math.Ceil(float64(totalSum) / float64(req.Capacity)))
+    totalSum := 0
+    for _, o := range orders {
+        totalSum += o
+    }
+    minSheets := int(math.Ceil(float64(totalSum) / float64(req.Capacity)))
 
-	startOvershoot := req.OvershootPct
-	var found bool
-	var bestR []int
-	var bestLayouts [][]int
-	var finalOvershootPct = startOvershoot
+    startOvershoot := req.OvershootPct
+    var found bool
+    var bestR []int
+    var bestLayouts [][]int
+    var finalOvershootPct = startOvershoot
 
-	steps := []float64{startOvershoot}
-	for s := math.Ceil(startOvershoot + 1); s <= 30.0; s += 1.0 {
-		steps = append(steps, s)
-	}
-	for s := 35.0; s <= 100.0; s += 5.0 {
-		steps = append(steps, s)
-	}
+    steps := []float64{startOvershoot}
+    for s := math.Ceil(startOvershoot + 1); s <= 30.0; s += 1.0 {
+        steps = append(steps, s)
+    }
+    for s := 35.0; s <= 100.0; s += 5.0 {
+        steps = append(steps, s)
+    }
 
 searchOuter:
-	for _, currentOvr := range steps {
-		if currentOvr < startOvershoot {
-			continue
-		}
-		maxOvershoot := currentOvr / 100.0
+    for _, currentOvr := range steps {
+        if currentOvr < startOvershoot {
+            continue
+        }
+        maxOvershoot := currentOvr / 100.0
 
-		for K := 1; K <= 2; K++ {
-			for extraSheets := 0; extraSheets <= 20; extraSheets++ {
-				totalSheets := minSheets + extraSheets
-				partitions := getPartitions(totalSheets, K)
+        for K := 1; K <= 2; K++ {
+            for extraSheets := 0; extraSheets <= 20; extraSheets++ {
+                totalSheets := minSheets + extraSheets
+                partitions := getPartitions(totalSheets, K)
 
-				for _, runs := range partitions {
-					layouts := solveExactCapacityDP(runs, orders, req.Capacity, maxOvershoot)
-					if layouts != nil {
-						bestR = runs
-						bestLayouts = layouts
-						found = true
-						finalOvershootPct = currentOvr
-						break searchOuter
-					}
-				}
-			}
-		}
-	}
+                for _, runs := range partitions {
+                    layouts := solveExactCapacityDP(runs, orders, req.Capacity, maxOvershoot)
+                    if layouts != nil {
+                        bestR = runs
+                        bestLayouts = layouts
+                        found = true
+                        finalOvershootPct = currentOvr
+                        break searchOuter
+                    }
+                }
+            }
+        }
+    }
 
-	if !found {
-		sendJSON(w, CalcResponse{Success: false, Message: "Could not find layout configuration even up to 100% overage limit."})
-		return
-	}
+    if !found {
+        sendJSON(w, CalcResponse{Success: false, Message: "Could not find layout configuration even up to 100% overage limit."})
+        return
+    }
 
-	resp := buildResponse(bestR, bestLayouts, orders, req.Capacity)
-	resp.TotalOvershoot = ((float64(resp.TotalProduced) - float64(resp.TotalOrdered)) / float64(resp.TotalOrdered)) * 100.0
-	resp.UpdatedOvershoot = finalOvershootPct
+    resp := buildResponse(bestR, bestLayouts, orders, req.Capacity)
+    resp.TotalOvershoot = ((float64(resp.TotalProduced) - float64(resp.TotalOrdered)) / float64(resp.TotalOrdered)) * 100.0
+    resp.UpdatedOvershoot = finalOvershootPct
 
-	if finalOvershootPct > startOvershoot {
-		resp.Message = fmt.Sprintf("Overshoot automatically raised to %.0f%% to find a valid layout without zeros.", finalOvershootPct)
-	}
+    if finalOvershootPct > startOvershoot {
+        resp.Message = fmt.Sprintf("Overshoot automatically raised to %.0f%% to find a valid layout without zeros.", finalOvershootPct)
+    }
 
-	sendJSON(w, resp)
+    sendJSON(w, resp)
 }
 
 //________________________________________________________
 // Constructs structured response payload
 func buildResponse(R []int, layouts [][]int, orders []int, capacity int) ExtendedCalcResponse {
-	totalSheets := 0
-	for _, r := range R {
-		totalSheets += r
-	}
+    totalSheets := 0
+    for _, r := range R {
+        totalSheets += r
+    }
 
-	var itemReports []ItemReport
-	totalOrdered := 0
-	totalProduced := 0
+    var itemReports []ItemReport
+    totalOrdered := 0
+    totalProduced := 0
 
-	var printCodes []string
-	var formNames []string
-	var formBlocks []FormBlock
+    var printCodes []string
+    var formNames []string
+    var formBlocks []FormBlock
 
-	for j := 0; j < len(R); j++ {
-		fName := fmt.Sprintf("Sheet %d (%d)", j+1, R[j])
-		formNames = append(formNames, fName)
-		var buffer bytes.Buffer
-		for i := 0; i < len(orders); i++ {
-			if layouts[i][j] > 0 {
-				buffer.WriteString(fmt.Sprintf("%d*%d ", i+1, layouts[i][j]))
-			}
-		}
-		line := strings.TrimSpace(buffer.String())
-		printCodes = append(printCodes, line)
-		formBlocks = append(formBlocks, FormBlock{
-			FormName: fName,
-			CodeLine: line,
-		})
-	}
+    for j := 0; j < len(R); j++ {
+        fName := fmt.Sprintf("Sheet %d (%d)", j+1, R[j])
+        formNames = append(formNames, fName)
+        var buffer bytes.Buffer
+        for i := 0; i < len(orders); i++ {
+            if layouts[i][j] > 0 {
+                buffer.WriteString(fmt.Sprintf("%d*%d ", i+1, layouts[i][j]))
+            }
+        }
+        line := strings.TrimSpace(buffer.String())
+        printCodes = append(printCodes, line)
+        formBlocks = append(formBlocks, FormBlock{
+            FormName: fName,
+            CodeLine: line,
+        })
+    }
 
-	for i, order := range orders {
-		produced := 0
-		var slotsParts []string
-		var slotsList []int
-		for j := 0; j < len(R); j++ {
-			slots := layouts[i][j]
-			produced += slots * R[j]
-			slotsParts = append(slotsParts, fmt.Sprintf("%d", slots))
-			slotsList = append(slotsList, slots)
-		}
+    for i, order := range orders {
+        produced := 0
+        var slotsParts []string
+        var slotsList []int
+        for j := 0; j < len(R); j++ {
+            slots := layouts[i][j]
+            produced += slots * R[j]
+            slotsParts = append(slotsParts, fmt.Sprintf("%d", slots))
+            slotsList = append(slotsList, slots)
+        }
 
-		totalOrdered += order
-		totalProduced += produced
-		overshootPct := ((float64(produced) - float64(order)) / float64(order)) * 100.0
+        totalOrdered += order
+        totalProduced += produced
+        overshootPct := ((float64(produced) - float64(order)) / float64(order)) * 100.0
 
-		itemReports = append(itemReports, ItemReport{
-			ID:        i + 1,
-			Target:    order,
-			Produced:  produced,
-			Overshoot: overshootPct,
-			SlotsStr:  strings.Join(slotsParts, " | "),
-			SlotsList: slotsList,
-		})
-	}
+        itemReports = append(itemReports, ItemReport{
+            ID:        i + 1,
+            Target:    order,
+            Produced:  produced,
+            Overshoot: overshootPct,
+            SlotsStr:  strings.Join(slotsParts, " | "),
+            SlotsList: slotsList,
+        })
+    }
 
-	globalOvershoot := ((float64(totalProduced) - float64(totalOrdered)) / float64(totalOrdered)) * 100.0
+    globalOvershoot := ((float64(totalProduced) - float64(totalOrdered)) / float64(totalOrdered)) * 100.0
 
-	base := CalcResponse{
-		Success:        true,
-		TotalSheets:    totalSheets,
-		TotalForms:     len(R),
-		Forms:          R,
-		ItemReports:    itemReports,
-		TotalOrdered:   totalOrdered,
-		TotalProduced:  totalProduced,
-		TotalOvershoot: globalOvershoot,
-		PrintCodes:     printCodes,
-		FormNames:      formNames,
-	}
+    base := CalcResponse{
+        Success:        true,
+        TotalSheets:    totalSheets,
+        TotalForms:     len(R),
+        Forms:          R,
+        ItemReports:    itemReports,
+        TotalOrdered:   totalOrdered,
+        TotalProduced:  totalProduced,
+        TotalOvershoot: globalOvershoot,
+        PrintCodes:     printCodes,
+        FormNames:      formNames,
+    }
 
-	return ExtendedCalcResponse{
-		CalcResponse: base,
-		FormBlocks:   formBlocks,
-	}
+    return ExtendedCalcResponse{
+        CalcResponse: base,
+        FormBlocks:   formBlocks,
+    }
 }
 
 //________________________________________________________
 // Helper function to send JSON response
 func sendJSON(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(data)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(data)
 }
 
 //________________________________________________________
 // Generates integer partitions for sheets breakdown
 func getPartitions(N, K int) [][]int {
-	var res [][]int
-	var backtrack func(partsLeft, target, minVal, maxVal int, current []int)
-	backtrack = func(partsLeft, target, minVal, maxVal int, current []int) {
-		if partsLeft == 1 {
-			if target >= minVal && target <= maxVal {
-				tmp := make([]int, len(current))
-				copy(tmp, current)
-				tmp = append(tmp, target)
-				res = append(res, tmp)
-			}
-			return
-		}
-		for v := minVal; v <= target-(partsLeft-1); v++ {
-			tmp := make([]int, len(current))
-			copy(tmp, current)
-			tmp = append(tmp, v)
-			backtrack(partsLeft-1, target-v, minVal, maxVal, tmp)
-		}
-	}
-	backtrack(K, N, 1, N, []int{})
-	return res
+    var res [][]int
+    var backtrack func(partsLeft, target, minVal, maxVal int, current []int)
+    backtrack = func(partsLeft, target, minVal, maxVal int, current []int) {
+        if partsLeft == 1 {
+            if target >= minVal && target <= maxVal {
+                tmp := make([]int, len(current))
+                copy(tmp, current)
+                tmp = append(tmp, target)
+                res = append(res, tmp)
+            }
+            return
+        }
+        for v := minVal; v <= target-(partsLeft-1); v++ {
+            tmp := make([]int, len(current))
+            copy(tmp, current)
+            tmp = append(tmp, v)
+            backtrack(partsLeft-1, target-v, minVal, maxVal, tmp)
+        }
+    }
+    backtrack(K, N, 1, N, []int{})
+    return res
 }
 
 //________________________________________________________
 // Encodes capacity slice into bit-packed State type
 func encode(caps []int) State {
-	var s State
-	for i, c := range caps {
-		s |= State(c) << (9 * i)
-	}
-	return s
+    var s State
+    for i, c := range caps {
+        s |= State(c) << (9 * i)
+    }
+    return s
 }
 
 //________________________________________________________
 // Decodes bit-packed State back into capacity slice
 func decode(s State, K int) []int {
-	caps := make([]int, K)
-	for i := 0; i < K; i++ {
-		caps[i] = int((s >> (9 * i)) & 0x1FF)
-	}
-	return caps
+    caps := make([]int, K)
+    for i := 0; i < K; i++ {
+        caps[i] = int((s >> (9 * i)) & 0x1FF)
+    }
+    return caps
 }
 
 //________________________________________________________
 // DP solver for exact capacity layouts
 func solveExactCapacityDP(R []int, orders []int, capacity int, maxOvr float64) [][]int {
-	K := len(R)
-	validTuples := make([][][]int, len(orders))
+    K := len(R)
+    validTuples := make([][][]int, len(orders))
 
-	for i, order := range orders {
-		minReq := order
-		maxReq := int(math.Floor(float64(order) * (1.0 + maxOvr)))
+    for i, order := range orders {
+        minReq := order
+        maxReq := int(math.Floor(float64(order) * (1.0 + maxOvr)))
 
-		var backtrack func(dim, currentSum int, currentTuple []int)
-		backtrack = func(dim, currentSum int, currentTuple []int) {
-			if dim == K {
-				if currentSum >= minReq && currentSum <= maxReq {
-					allZeros := true
-					for _, val := range currentTuple {
-						if val > 0 {
-							allZeros = false
-							break
-						}
-					}
-					if !allZeros {
-						tmp := make([]int, K)
-						copy(tmp, currentTuple)
-						validTuples[i] = append(validTuples[i], tmp)
-					}
-				}
-				return
-			}
-			maxS := maxReq / R[dim]
-			if maxS > capacity {
-				maxS = capacity
-			}
-			minS := 1
-			for s := minS; s <= maxS; s++ {
-				currentTuple[dim] = s
-				backtrack(dim+1, currentSum+s*R[dim], currentTuple)
-			}
-		}
-		backtrack(0, 0, make([]int, K))
+        var backtrack func(dim, currentSum int, currentTuple []int)
+        backtrack = func(dim, currentSum int, currentTuple []int) {
+            if dim == K {
+                if currentSum >= minReq && currentSum <= maxReq {
+                    allZeros := true
+                    for _, val := range currentTuple {
+                        if val > 0 {
+                            allZeros = false
+                            break
+                        }
+                    }
+                    if !allZeros {
+                        tmp := make([]int, K)
+                        copy(tmp, currentTuple)
+                        validTuples[i] = append(validTuples[i], tmp)
+                    }
+                }
+                return
+            }
+            maxS := maxReq / R[dim]
+            if maxS > capacity {
+                maxS = capacity
+            }
+            minS := 1
+            for s := minS; s <= maxS; s++ {
+                currentTuple[dim] = s
+                backtrack(dim+1, currentSum+s*R[dim], currentTuple)
+            }
+        }
+        backtrack(0, 0, make([]int, K))
 
-		if len(validTuples[i]) == 0 {
-			return nil
-		}
-	}
+        if len(validTuples[i]) == 0 {
+            return nil
+        }
+    }
 
-	maxSlotsRemaining := make([][]int, len(orders))
-	for i := len(orders) - 1; i >= 0; i-- {
-		maxSlotsRemaining[i] = make([]int, K)
-		for j := 0; j < K; j++ {
-			maxAllowed := 0
-			for _, t := range validTuples[i] {
-				if t[j] > maxAllowed {
-					maxAllowed = t[j]
-				}
-			}
-			if i < len(orders)-1 {
-				maxSlotsRemaining[i][j] = maxSlotsRemaining[i+1][j] + maxAllowed
-			} else {
-				maxSlotsRemaining[i][j] = maxAllowed
-			}
-		}
-	}
+    maxSlotsRemaining := make([][]int, len(orders))
+    for i := len(orders) - 1; i >= 0; i-- {
+        maxSlotsRemaining[i] = make([]int, K)
+        for j := 0; j < K; j++ {
+            maxAllowed := 0
+            for _, t := range validTuples[i] {
+                if t[j] > maxAllowed {
+                    maxAllowed = t[j]
+                }
+            }
+            if i < len(orders)-1 {
+                maxSlotsRemaining[i][j] = maxSlotsRemaining[i+1][j] + maxAllowed
+            } else {
+                maxSlotsRemaining[i][j] = maxAllowed
+            }
+        }
+    }
 
-	targetCaps := mainTargetCaps(K, capacity)
-	targetState := encode(targetCaps)
+    targetCaps := mainTargetCaps(K, capacity)
+    targetState := encode(targetCaps)
 
-	prevStates := make(map[State]int)
-	prevStates[0] = -1
-	history := make([]map[State]int, len(orders))
+    prevStates := make(map[State]int)
+    prevStates[0] = -1
+    history := make([]map[State]int, len(orders))
 
-	for i := 0; i < len(orders); i++ {
-		nextStates := make(map[State]int)
-		for state := range prevStates {
-			caps := decode(state, K)
+    for i := 0; i < len(orders); i++ {
+        nextStates := make(map[State]int)
+        for state := range prevStates {
+            caps := decode(state, K)
 
-			for choiceIdx, tuple := range validTuples[i] {
-				valid := true
-				newCaps := make([]int, K)
+            for choiceIdx, tuple := range validTuples[i] {
+                valid := true
+                newCaps := make([]int, K)
 
-				for j := 0; j < K; j++ {
-					newCaps[j] = caps[j] + tuple[j]
-					if newCaps[j] > capacity {
-						valid = false
-						break
-					}
+                for j := 0; j < K; j++ {
+                    newCaps[j] = caps[j] + tuple[j]
+                    if newCaps[j] > capacity {
+                        valid = false
+                        break
+                    }
 
-					remCap := capacity - newCaps[j]
-					var maxRem int
-					if i < len(orders)-1 {
-						maxRem = maxSlotsRemaining[i+1][j]
-					}
-					if remCap > maxRem {
-						valid = false
-						break
-					}
-				}
+                    remCap := capacity - newCaps[j]
+                    var maxRem int
+                    if i < len(orders)-1 {
+                        maxRem = maxSlotsRemaining[i+1][j]
+                    }
+                    if remCap > maxRem {
+                        valid = false
+                        break
+                    }
+                }
 
-				if valid {
-					ns := encode(newCaps)
-					if _, exists := nextStates[ns]; !exists {
-						nextStates[ns] = choiceIdx
-					}
-				}
-			}
-		}
-		if len(nextStates) == 0 {
-			return nil
-		}
-		history[i] = nextStates
-		prevStates = nextStates
-	}
+                if valid {
+                    ns := encode(newCaps)
+                    if _, exists := nextStates[ns]; !exists {
+                        nextStates[ns] = choiceIdx
+                    }
+                }
+            }
+        }
+        if len(nextStates) == 0 {
+            return nil
+        }
+        history[i] = nextStates
+        prevStates = nextStates
+    }
 
-	if _, exists := prevStates[targetState]; !exists {
-		return nil
-	}
+    if _, exists := prevStates[targetState]; !exists {
+        return nil
+    }
 
     ans := make([][]int, len(orders))
-	currState := targetState
-	for i := len(orders) - 1; i >= 0; i-- {
-		choiceIdx := history[i][currState]
-		tuple := validTuples[i][choiceIdx]
-		ans[i] = tuple
+    currState := targetState
+    for i := len(orders) - 1; i >= 0; i-- {
+        choiceIdx := history[i][currState]
+        tuple := validTuples[i][choiceIdx]
+        ans[i] = tuple
 
-		caps := decode(currState, K)
-		for j := 0; j < K; j++ {
-			caps[j] -= tuple[j]
-		}
-		currState = encode(caps)
-	}
-	return ans
+        caps := decode(currState, K)
+        for j := 0; j < K; j++ {
+            caps[j] -= tuple[j]
+        }
+        currState = encode(caps)
+    }
+    return ans
 }
 
 //________________________________________________________
 // Returns target capacities slice for DP solver
 func mainTargetCaps(K, capacity int) []int {
-	t := make([]int, K)
-	for i := 0; i < K; i++ {
-		t[i] = capacity
-	}
-	return t
+    t := make([]int, K)
+    for i := 0; i < K; i++ {
+        t[i] = capacity
+    }
+    return t
 }
