@@ -30,6 +30,12 @@ const serverPort = ":8080"
 type State int32
 
 //________________________________________________________
+type OrderItem struct {
+    PageNum int
+    Quantity int
+}
+
+//________________________________________________________
 type CalcRequest struct {
     OvershootPct float64 `json:"overshoot"`
     Capacity     int     `json:"capacity"`
@@ -38,12 +44,12 @@ type CalcRequest struct {
 
 //________________________________________________________
 type ItemReport struct {
-    ID         int     `json:"id"`
-    Target     int     `json:"target"`
-    Produced   int     `json:"produced"`
-    Overshoot  float64 `json:"overshoot"`
-    SlotsStr   string  `json:"slots_str"`
-    SlotsList  []int   `json:"slots_list"`
+    PageNum   int     `json:"page_num"`
+    Target    int     `json:"target"`
+    Produced  int     `json:"produced"`
+    Overshoot float64 `json:"overshoot"`
+    SlotsStr  string  `json:"slots_str"`
+    SlotsList []int   `json:"slots_list"`
 }
 
 //________________________________________________________
@@ -168,7 +174,7 @@ const indexHTML = `<!DOCTYPE html>
             </div>
             <div class="input-group full-width">
                 <label>Orders (space separated)</label>
-                <textarea id="orders" rows="1" oninput="autoResize(this)">500 600 400 500 500 500 800 400 600 400 500 800 400 800 500 500 400 500 600 800 600</textarea>
+                <textarea id="orders" rows="1" oninput="autoResize(this)">1*500 3*600 4*400 5*500 6*500 7*500 9*800 10*400 15*600 16*400 23*500 27*800 29*400 30*800 31*500 32*500 35*400 38*500 39*600 40*800 43*600</textarea>
             </div>
         </div>
 
@@ -316,7 +322,7 @@ const indexHTML = `<!DOCTYPE html>
 
                     const table = document.createElement('table');
                     let theadHTML = '<thead><tr>' +
-                        '<th class="col-item">Item</th>' +
+                        '<th class="col-item">Page</th>' +
                         '<th class="col-quantity">Quantity</th>' +
                         '<th class="col-order">Order / Produced</th>' +
                         '<th class="col-overage">Overage</th>' +
@@ -332,7 +338,7 @@ const indexHTML = `<!DOCTYPE html>
                         chipsHTML += '</div>';
 
                         tbodyHTML += '<tr>' +
-                            '<td class="col-item"><b>№ ' + item.id + '</b></td>' +
+                            '<td class="col-item"><b>№ ' + item.page_num + '</b></td>' +
                             '<td class="col-quantity">' + chipsHTML + '</td>' +
                             '<td class="col-order">' + item.target + ' / ' + item.produced + '</td>' +
                             '<td class="col-overage overshoot good">+' + item.overshoot.toFixed(2) + '%</td>' +
@@ -612,11 +618,17 @@ func handleCalc(w http.ResponseWriter, r *http.Request) {
     }
 
     parts := strings.Fields(req.Orders)
+    var items []OrderItem
     var orders []int
     for _, p := range parts {
-        qty, err := strconv.Atoi(p)
-        if err == nil {
-            orders = append(orders, qty)
+        subParts := strings.Split(p, "*")
+        if len(subParts) == 2 {
+            pageNum, err1 := strconv.Atoi(subParts[0])
+            qty, err2 := strconv.Atoi(subParts[1])
+            if err1 == nil && err2 == nil {
+                items = append(items, OrderItem{PageNum: pageNum, Quantity: qty})
+                orders = append(orders, qty)
+            }
         }
     }
 
@@ -676,7 +688,7 @@ searchOuter:
         return
     }
 
-    resp := buildResponse(bestR, bestLayouts, orders, req.Capacity)
+    resp := buildResponse(bestR, bestLayouts, items, req.Capacity)
     resp.TotalOvershoot = ((float64(resp.TotalProduced) - float64(resp.TotalOrdered)) / float64(resp.TotalOrdered)) * 100.0
     resp.UpdatedOvershoot = finalOvershootPct
 
@@ -689,7 +701,7 @@ searchOuter:
 
 //________________________________________________________
 // Constructs structured response payload
-func buildResponse(R []int, layouts [][]int, orders []int, capacity int) ExtendedCalcResponse {
+func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) ExtendedCalcResponse {
     totalSheets := 0
     for _, r := range R {
         totalSheets += r
@@ -707,9 +719,9 @@ func buildResponse(R []int, layouts [][]int, orders []int, capacity int) Extende
         fName := fmt.Sprintf("Sheet %d (%d)", j+1, R[j])
         formNames = append(formNames, fName)
         var buffer bytes.Buffer
-        for i := 0; i < len(orders); i++ {
+        for i := 0; i < len(items); i++ {
             if layouts[i][j] > 0 {
-                buffer.WriteString(fmt.Sprintf("%d*%d ", i+1, layouts[i][j]))
+                buffer.WriteString(fmt.Sprintf("%d*%d ", items[i].PageNum, layouts[i][j]))
             }
         }
         line := strings.TrimSpace(buffer.String())
@@ -720,7 +732,7 @@ func buildResponse(R []int, layouts [][]int, orders []int, capacity int) Extende
         })
     }
 
-    for i, order := range orders {
+    for i, item := range items {
         produced := 0
         var slotsParts []string
         var slotsList []int
@@ -731,13 +743,13 @@ func buildResponse(R []int, layouts [][]int, orders []int, capacity int) Extende
             slotsList = append(slotsList, slots)
         }
 
-        totalOrdered += order
+        totalOrdered += item.Quantity
         totalProduced += produced
-        overshootPct := ((float64(produced) - float64(order)) / float64(order)) * 100.0
+        overshootPct := ((float64(produced) - float64(item.Quantity)) / float64(item.Quantity)) * 100.0
 
         itemReports = append(itemReports, ItemReport{
-            ID:        i + 1,
-            Target:    order,
+            PageNum:   item.PageNum,
+            Target:    item.Quantity,
             Produced:  produced,
             Overshoot: overshootPct,
             SlotsStr:  strings.Join(slotsParts, " | "),
