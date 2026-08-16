@@ -31,7 +31,7 @@ type State int32
 
 //________________________________________________________
 type OrderItem struct {
-    PageNum int
+    PageNum  int
     Quantity int
 }
 
@@ -119,7 +119,8 @@ const indexHTML = `<!DOCTYPE html>
         .card-title { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .card-value { font-size: 16px; font-weight: bold; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .section-title { font-size: 16px; font-weight: bold; margin: 8px 0 3px 0; color: #333; }
+        .section-title { font-size: 16px; font-weight: bold; margin: 8px 0 3px 0; color: #333; display: flex; align-items: center; gap: 6px; }
+        .sheet-badge { background-color: #800020; color: #ffffff; padding: 1px 6px; border-radius: 4px; font-weight: bold; display: inline-block; }
 
         .code-block-container { margin-bottom: 8px; width: 100%; box-sizing: border-box; display: flex; align-items: stretch; gap: 6px; }
         .print-codes { color: #ffffff; background: #2d2d2d; padding: 8px 12px; border-radius: 4px; font-family: monospace; white-space: normal; word-break: break-all; overflow-wrap: break-word; font-size: 16.5px; flex-grow: 1; box-sizing: border-box; border: 1px solid #2d2d2d; display: flex; align-items: center; -webkit-user-select: text; user-select: text; }
@@ -295,7 +296,7 @@ const indexHTML = `<!DOCTYPE html>
                         data.form_blocks.forEach((block, index) => {
                             const subTitle = document.createElement('div');
                             subTitle.className = 'section-title';
-                            subTitle.textContent = block.form_name;
+                            subTitle.innerHTML = block.form_name_html;
                             resultsContainer.appendChild(subTitle);
 
                             const blockDiv = document.createElement('div');
@@ -362,8 +363,9 @@ const indexHTML = `<!DOCTYPE html>
 </html>`
 
 type FormBlock struct {
-    FormName string `json:"form_name"`
-    CodeLine string `json:"code_line"`
+    FormName     string `json:"form_name"`
+    FormNameHtml string `json:"form_name_html"`
+    CodeLine     string `json:"code_line"`
 }
 
 type ExtendedCalcResponse struct {
@@ -716,7 +718,8 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
     var formBlocks []FormBlock
 
     for j := 0; j < len(R); j++ {
-        fName := fmt.Sprintf("Sheet %d (%d)", j+1, R[j])
+        fName := fmt.Sprintf("Sheet %d %d", j+1, R[j])
+        fNameHtml := fmt.Sprintf("Sheet %d <span class=\"sheet-badge\">%d</span> Order quantity Pcs", j+1, R[j])
         formNames = append(formNames, fName)
         var buffer bytes.Buffer
         for i := 0; i < len(items); i++ {
@@ -727,8 +730,9 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
         line := strings.TrimSpace(buffer.String())
         printCodes = append(printCodes, line)
         formBlocks = append(formBlocks, FormBlock{
-            FormName: fName,
-            CodeLine: line,
+            FormName:     fName,
+            FormNameHtml: fNameHtml,
+            CodeLine:     line,
         })
     }
 
