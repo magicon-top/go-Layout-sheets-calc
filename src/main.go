@@ -1,5 +1,6 @@
+//go:build windows
 //________________________________________________________
-// Algoritm 1 (improved with priority queue). 
+// Algoritm 1 (improved + optimized + external HTML). 
 // Description: Go desktop application with resizable borderless rounded window via webview2
 //________________________________________________________
 package main
@@ -28,8 +29,8 @@ import (
 //________________________________________________________
 const serverPort = ":8080"
 
-//________________________________________________________
-type State int32
+// Глобальная переменная для HTML (загружается из файла при старте)
+var indexHTML string
 
 //________________________________________________________
 type OrderItem struct {
@@ -37,14 +38,12 @@ type OrderItem struct {
 	Quantity int
 }
 
-//________________________________________________________
 type CalcRequest struct {
 	OvershootPct float64 `json:"overshoot"`
 	Capacity     int     `json:"capacity"`
 	Orders       string  `json:"orders"`
 }
 
-//________________________________________________________
 type ItemReport struct {
 	PageNum   int     `json:"page_num"`
 	Target    int     `json:"target"`
@@ -54,544 +53,32 @@ type ItemReport struct {
 	SlotsList []int   `json:"slots_list"`
 }
 
-//________________________________________________________
 type CalcResponse struct {
-	Success          bool         `json:"success"`
-	Message          string       `json:"message"`
-	TotalSheets      int          `json:"total_sheets"`
-	TotalForms       int          `json:"total_forms"`
-	Forms            []int        `json:"forms"`
-	ItemReports      []ItemReport `json:"item_reports"`
-	TotalOrdered     int          `json:"total_ordered"`
-	TotalProduced    int          `json:"total_produced"`
-	TotalOvershoot   float64      `json:"total_overshoot"`
-	PrintCodes       []string     `json:"print_codes"`
-	FormNames        []string     `json:"form_names"`
-	UpdatedOvershoot float64      `json:"updated_overshoot"`
+	Success        bool         `json:"success"`
+	Message        string       `json:"message"`
+	TotalSheets    int          `json:"total_sheets"`
+	TotalForms     int          `json:"total_forms"`
+	Forms          []int        `json:"forms"`
+	ItemReports    []ItemReport `json:"item_reports"`
+	TotalOrdered   int          `json:"total_ordered"`
+	TotalProduced  int          `json:"total_produced"`
+	TotalOvershoot float64      `json:"total_overshoot"`
+	PrintCodes     []string     `json:"print_codes"`
+	FormNames      []string     `json:"form_names"`
 }
 
-//________________________________________________________
-const indexHTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Layout-sheets-calc.Magicon.top by Levchuk</title>
-    <style>
-        html, body { height: 100%; width: 100%; background-color: #f0f2f5; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; font-size: 14px; overflow: hidden; -webkit-user-select: none; user-select: none; box-sizing: border-box; }
-        .titlebar { background: #EFF9DE; color: #432818; height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 0 0 8px; box-sizing: border-box; cursor: default; flex-shrink: 0; }
-        .titlebar-title { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
-        .titlebar-controls { display: flex; align-items: center; gap: 0; height: 100%; padding-right: 4px; }
-
-        .container { width: 100%; height: calc(100% - 28px); box-sizing: border-box; position: relative; padding: 4px; display: flex; flex-direction: column; overflow-y: auto;  overflow-y: scroll; }
-
-        .header-panel { background: white; padding: 6px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); width: 100%; box-sizing: border-box; position: relative; flex-shrink: 0; }
-        .top-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
-        .input-group { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
-        .input-group.full-width { flex: 1; min-width: 0; }
-        .input-group label { font-size: 11px; font-weight: bold; color: #555; white-space: nowrap; }
-        .input-group input, .input-group textarea { padding: 3px 6px; border: 1px solid #ccc; border-radius: 3px; font-size: 14px; font-weight: bold; outline: none; transition: border 0.2s; box-sizing: border-box; font-family: inherit; -webkit-user-select: text; user-select: text; }
-        .input-group input:focus, .input-group textarea:focus { border-color: #007bff; }
-
-        #capacity { 
-            width: 70px; 
-            height: 28px; 
-            font-size: 21px; 
-            color: #006400; 
-            font-weight: bold;
-        }
-        #orders { width: 100%; min-height: 28px; resize: none; overflow-y: hidden; line-height: 1.3; box-sizing: border-box; }
-
-        .action-buttons {
-            position: absolute;
-            right: 6px;
-            top: 6px;
-            display: flex;
-            flex-direction: row;
-            gap: 4px;
-            z-index: 100;
-        }
-        .action-btn {
-            padding: 0 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            transition: background 0.2s;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            color: white;
-            width: auto;
-            min-width: 50px;
-        }
-        .action-btn svg {
-            width: 16px;
-            height: 16px;
-            fill: white;
-        }
-
-        #calcBtn { background: #007bff; }
-        #calcBtn:hover:not(:disabled) { background: #0056b3; }
-        #calcBtn:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.65; }
-
-        #reduceBtn { background: #dc3545; }
-        #reduceBtn:hover:not(:disabled) { background: #b02a37; }
-        #reduceBtn:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.65; }
-
-        #increaseBtn { background: #28a745; }
-        #increaseBtn:hover:not(:disabled) { background: #1e7e34; }
-        #increaseBtn:disabled { background: #6c757d; cursor: not-allowed; opacity: 0.65; }
-
-        button.titlebar-btn { padding: 0; border: none; background: transparent; cursor: pointer; width: 28px; height: 22px; border-radius: 3px; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
-        button.titlebar-btn.close { background: transparent; border-radius: 3px; width: 24px; height: 22px; transition: background 0.2s, fill 0.2s; }
-        button.titlebar-btn.close:hover { background: #dc3545; }
-        button.titlebar-btn svg { width: 12px; height: 12px; fill: #333333; stroke: #333333; stroke-width: 0; display: block; margin: auto; transition: fill 0.2s; }
-        button.titlebar-btn.close svg { fill: #333333; stroke: #333333; }
-        button.titlebar-btn.close:hover svg { fill: white; stroke: white; }
-
-        .report-panel { margin-top: 4px; background: white; padding: 6px 8px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: none; width: 100%; box-sizing: border-box; }
-
-        .summary-cards { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: nowrap; width: 100%; box-sizing: border-box; }
-        .card { background: #f8f9fa; padding: 4px 6px; border-radius: 3px; border-left: 2px solid #007bff; flex: 1; min-width: 0; box-sizing: border-box; }
-        .card.warning { border-left-color: #ffc107; }
-        .card.success { border-left-color: #2d2d2d; }
-        .card-title { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-value { font-size: 14px; font-weight: bold; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-        .card-value.forms-value {
-            color: #dc3545;
-            font-size: 26px;
-            font-weight: bold;
-        }
-
-        .section-title { font-size: 14px; font-weight: bold; margin: 4px 0 2px 0; color: #333; display: flex; align-items: center; gap: 4px; }
-        .sheet-badge { background-color: #800020; color: #ffffff; padding: 1px 4px; border-radius: 3px; font-weight: bold; display: inline-block; }
-
-        .code-block-container { margin-bottom: 4px; width: 100%; box-sizing: border-box; display: flex; align-items: stretch; gap: 4px; }
-        .print-codes { color: #ffffff; background: #2d2d2d; padding: 6px 10px; border-radius: 3px; font-family: monospace; white-space: normal; word-break: break-all; overflow-wrap: break-word; font-size: 14px; flex-grow: 1; box-sizing: border-box; border: 1px solid #2d2d2d; display: flex; align-items: center; -webkit-user-select: text; user-select: text; }
-        .copy-btn { padding: 0 10px; background: #6c757d; color: white; border: none; border-radius: 3px; font-size: 13px; cursor: pointer; height: auto; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: bold; }
-
-        table { width: 100%; border-collapse: collapse; margin-bottom: 4px; -webkit-user-select: text; user-select: text; table-layout: fixed; }
-        th.col-item, td.col-item { width: 60px; }
-        th.col-overage, td.col-overage { width: 70px; text-align: right; }
-        th.col-order, td.col-order { width: 80px; text-align: right; }
-        th.col-quantity, td.col-quantity { width: auto; }
-
-        th, td { padding: 3px 6px; text-align: left; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: middle; }
-        th { background-color: #f8f9fa; font-weight: 600; color: #444; padding-top: 3px; padding-bottom: 3px; }
-        tr:hover { background-color: #f1f4f8; }
-        .overshoot { font-weight: bold; }
-        .overshoot.good { color: #28a745; }
-
-        .quantity-chips { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
-        .quantity-chip { background-color: #2d2d2d; color: #ffffff; padding: 1px 3px; border-radius: 3px; min-width: 30px; text-align: center; font-size: 13px; font-weight: 600; display: inline-block; box-sizing: border-box; }
-
-        .error { color: #dc3545; font-weight: bold; padding: 6px; background: #ffe6e6; border-radius: 3px; display: none; margin-top: 4px; width: 100%; box-sizing: border-box; font-size: 13px; }
-        .execution-time { margin-top: 6px; font-size: 12px; color: #555; font-weight: bold; border-top: 1px solid #eee; padding-top: 4px; }
-    </style>
-</head>
-<body>
-    <div class="titlebar" id="titleBar">
-        <div class="titlebar-title">Layout-sheets-calc.MagicON.Top by Levchuk V.N.</div>
-        <div class="titlebar-controls">
-            <button class="titlebar-btn close" onclick="closeApp()" title="Close Application">
-                <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-            </button>
-        </div>
-    </div>
-
-    <div class="container">
-        <div class="action-buttons">
-            <button id="calcBtn" class="action-btn" onclick="calculate()" title="Calculate">Calc</button>
-            <button id="reduceBtn" class="action-btn" onclick="reduceSheets()" title="Reduce Sheets by 1">-1 Sheet</button>
-            <button id="increaseBtn" class="action-btn" onclick="increaseSheets()" title="Increase Sheets by 2">+1 Sheet</button>
-        </div>
-
-        <div class="header-panel">
-            <div class="top-row">
-                <div class="input-group" style="flex-shrink: 0;">
-                    <label>Items per sheet</label>
-                    <input type="number" id="capacity" value="88" min="1">
-                </div>
-                <div class="input-group full-width">
-                    <label>Orders (space separated)</label>
-                    <textarea id="orders" rows="1" oninput="autoResize(this)">11*1000 14*500 15*500 23*250 25*1000 28*500 33*2000 50*500 60*250 71*250 74*250 93*500 94*500 103*2000 113*500 117*250 119*1000 120*250 122*500 139*250 155*500 157*250 162*500 169*500 171*1000 172*250 188*250 191*750 193*500 199*500 205*500 206*500 221*1000 224*1000 227*250 234*1000 235*500 236*1000 238*500 242*1000 243*1000 253*1000 256*1000</textarea>
-                </div>
-            </div>
-        </div>
-
-        <div id="errorBox" class="error"></div>
-
-        <div id="reportPanel" class="report-panel">
-            <div class="summary-cards">
-                <div class="card" style="display: none;">
-                    <div class="card-title">Sheets for Print</div>
-                    <div class="card-value" id="valSheets">-</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Unique Sheets</div>
-                    <div class="card-value forms-value" id="valForms">-</div>
-                </div>
-                <div class="card warning">
-                    <div class="card-title">Total Overage</div>
-                    <div class="card-value" id="valTotalOvershoot">-</div>
-                </div>
-                <div class="card success" style="border-left-color: #2d2d2d; background: #2d2d2d;">
-                    <div class="card-title" style="color: #cccccc;">Ordered / Produced</div>
-                    <div class="card-value" style="font-size: 13px; margin-top: 1px; color: #ffffff;"><span id="valOrdered"></span> / <span id="valProduced"></span></div>
-                </div>
-            </div>
-
-            <div id="resultsContainer"></div>
-            <div id="execTimeBox" class="execution-time"></div>
-        </div>
-    </div>
-
-    <script>
-        // Auto-resizes textarea based on content
-        function autoResize(textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = textarea.scrollHeight + 'px';
-        }
-
-        // Глобальные переменные
-        let currentOvershoot = 0;
-        let overshootHistory = [];
-
-        // Общая функция для вызова API расчёта
-        async function fetchCalculation(payload) {
-            const response = await fetch('/api/calculate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            return await response.json();
-        }
-
-        // Обновляет состояние кнопок и скрывает/показывает панель
-        function updateButtonsState(currentForms, minSheets, disableAll, hideReport) {
-            const reduceBtn = document.getElementById('reduceBtn');
-            const increaseBtn = document.getElementById('increaseBtn');
-            const calcBtn = document.getElementById('calcBtn');
-            const reportPanel = document.getElementById('reportPanel');
-
-            // Скрываем панель, если hideReport = true
-            if (hideReport) {
-                reportPanel.style.display = 'none';
-            }
-
-            // Calc всегда активна
-            calcBtn.disabled = false;
-
-            // Если пришёл флаг отключения всех кнопок (изменение полей)
-            if (disableAll) {
-                reduceBtn.disabled = true;
-                increaseBtn.disabled = true;
-                return;
-            }
-
-            // -1 Sheet: активна, если currentForms > minSheets
-            if (currentForms <= minSheets) {
-                reduceBtn.disabled = true;
-                reduceBtn.title = 'Already at minimum sheets';
-            } else {
-                reduceBtn.disabled = false;
-                reduceBtn.title = 'Reduce Sheets by 1';
-            }
-
-            // +1 Sheet: активна, если в истории есть элементы
-            if (overshootHistory.length > 0) {
-                increaseBtn.disabled = false;
-                increaseBtn.title = 'Revert to previous overshoot';
-            } else {
-                increaseBtn.disabled = true;
-                increaseBtn.title = 'No history to revert';
-            }
-        }
-
-        // При изменении полей orders или capacity отключаем кнопки +1 и -1, скрываем панель
-        document.getElementById('orders').addEventListener('input', function() {
-            overshootHistory = [];
-            currentOvershoot = 0;
-            const currentForms = parseInt(document.getElementById('valForms').textContent) || 0;
-            const parts = document.getElementById('orders').value.trim().split(/\s+/).filter(s => s.length > 0);
-            const numItems = parts.length;
-            const capacityVal = parseInt(document.getElementById('capacity').value) || 88;
-            const minSheets = Math.ceil(numItems / capacityVal);
-            updateButtonsState(currentForms, minSheets, true, true);
-        });
-        
-        document.getElementById('capacity').addEventListener('change', function() {
-            overshootHistory = [];
-            currentOvershoot = 0;
-            const currentForms = parseInt(document.getElementById('valForms').textContent) || 0;
-            const parts = document.getElementById('orders').value.trim().split(/\s+/).filter(s => s.length > 0);
-            const numItems = parts.length;
-            const capacityVal = parseInt(document.getElementById('capacity').value) || 88;
-            const minSheets = Math.ceil(numItems / capacityVal);
-            updateButtonsState(currentForms, minSheets, true, true);
-        });
-        document.getElementById('capacity').addEventListener('input', function() {
-            overshootHistory = [];
-            currentOvershoot = 0;
-            const currentForms = parseInt(document.getElementById('valForms').textContent) || 0;
-            const parts = document.getElementById('orders').value.trim().split(/\s+/).filter(s => s.length > 0);
-            const numItems = parts.length;
-            const capacityVal = parseInt(document.getElementById('capacity').value) || 88;
-            const minSheets = Math.ceil(numItems / capacityVal);
-            updateButtonsState(currentForms, minSheets, true, true);
-        });
-
-        // Основной расчёт – обновляет UI
-        async function calculate() {
-            const startTime = performance.now();
-            const calcBtn = document.getElementById('calcBtn');
-            const reduceBtn = document.getElementById('reduceBtn');
-            const increaseBtn = document.getElementById('increaseBtn');
-            const errorBox = document.getElementById('errorBox');
-            const reportPanel = document.getElementById('reportPanel');
-
-            calcBtn.disabled = true;
-            reduceBtn.disabled = true;
-            increaseBtn.disabled = true;
-            errorBox.style.display = 'none';
-            reportPanel.style.display = 'none';
-
-            const payload = {
-                overshoot: currentOvershoot,
-                capacity: parseInt(document.getElementById('capacity').value) || 88,
-                orders: document.getElementById('orders').value
-            };
-
-            try {
-                const data = await fetchCalculation(payload);
-
-                if (!data.success) {
-                    errorBox.textContent = data.message;
-                    errorBox.style.display = 'block';
-                } else {
-                    document.getElementById('valSheets').textContent = data.total_sheets;
-                    document.getElementById('valForms').textContent = data.total_forms;
-                    document.getElementById('valTotalOvershoot').textContent = '+' + data.total_overshoot.toFixed(2) + '%';
-                    document.getElementById('valOrdered').textContent = data.total_ordered;
-                    document.getElementById('valProduced').textContent = data.total_produced;
-
-                    const parts = document.getElementById('orders').value.trim().split(/\s+/).filter(s => s.length > 0);
-                    const numItems = parts.length;
-                    const capacityVal = parseInt(document.getElementById('capacity').value) || 88;
-                    const minSheets = Math.ceil(numItems / capacityVal);
-                    updateButtonsState(data.total_forms, minSheets, false, false);
-                    reportPanel.style.display = 'block';
-
-                    const resultsContainer = document.getElementById('resultsContainer');
-                    // Собираем весь HTML в одну строку для оптимизации DOM-операций
-                    let html = '';
-
-                    if (data.form_blocks && data.form_blocks.length > 0) {
-                        data.form_blocks.forEach((block) => {
-                            html += '<div class="section-title">' + block.form_name_html + '</div>';
-                            html += '<div class="code-block-container">';
-                            html += '<div class="print-codes">' + block.code_line + '</div>';
-                            html += '<button class="copy-btn" data-code="' + block.code_line.replace(/"/g, '&quot;') + '">Copy</button>';
-                            html += '</div>';
-                        });
-                    }
-
-                    html += '<table>';
-                    html += '<thead><tr>' +
-                        '<th class="col-item">Page</th>' +
-                        '<th class="col-quantity">Quantity</th>' +
-                        '<th class="col-order">Order / Produced</th>' +
-                        '<th class="col-overage">Overage</th>' +
-                        '</tr></thead>';
-                    html += '<tbody>';
-                    data.item_reports.forEach(item => {
-                        let chipsHTML = '<div class="quantity-chips">';
-                        if (item.slots_list && item.slots_list.length > 0) {
-                            item.slots_list.forEach(val => {
-                                chipsHTML += '<span class="quantity-chip">' + val + '</span>';
-                            });
-                        }
-                        chipsHTML += '</div>';
-
-                        html += '<tr>' +
-                            '<td class="col-item"><b>№ ' + item.page_num + '</b></td>' +
-                            '<td class="col-quantity">' + chipsHTML + '</td>' +
-                            '<td class="col-order">' + item.target + ' / ' + item.produced + '</td>' +
-                            '<td class="col-overage overshoot good">+' + item.overshoot.toFixed(2) + '%</td>' +
-                            '</tr>';
-                    });
-                    html += '</tbody></table>';
-
-                    if (data.logs && data.logs.length > 0) {
-                        html += '<div class="section-title" style="margin-top: 8px;">Calculation Cycle Logs</div>';
-                        html += '<div class="code-block-container"><pre style="background: #1e1e1e; color: #a5d6ff; padding: 6px; border-radius: 3px; overflow-x: auto; font-size: 11px; margin: 0; width: 100%; box-sizing: border-box; font-family: Consolas, monospace;">' + data.logs + '</pre></div>';
-                    }
-
-                    resultsContainer.innerHTML = html;
-
-                    // Добавляем обработчики для кнопок Copy
-                    document.querySelectorAll('.copy-btn').forEach(btn => {
-                        btn.addEventListener('click', function() {
-                            const code = this.getAttribute('data-code');
-                            navigator.clipboard.writeText(code);
-                            this.textContent = 'Copied!';
-                            setTimeout(() => { this.textContent = 'Copy'; }, 2000);
-                        });
-                    });
-
-                    reportPanel.style.display = 'block';
-                }
-            } catch (err) {
-                errorBox.textContent = "Server connection error.";
-                errorBox.style.display = 'block';
-            } finally {
-                const endTime = performance.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(3);
-                document.getElementById('execTimeBox').textContent = 'Execution time: ' + duration + ' sec';
-
-                const currentForms = parseInt(document.getElementById('valForms').textContent) || 0;
-                const parts2 = document.getElementById('orders').value.trim().split(/\s+/).filter(s => s.length > 0);
-                const numItems2 = parts2.length;
-                const capacityVal2 = parseInt(document.getElementById('capacity').value) || 88;
-                const minSheets2 = Math.ceil(numItems2 / capacityVal2);
-                updateButtonsState(currentForms, minSheets2, false, false);
-                calcBtn.disabled = false;
-            }
-        }
-
-        // -1 Sheet: используем серверный поиск минимального overshoot
-        async function reduceSheets() {
-            const reduceBtn = document.getElementById('reduceBtn');
-            const increaseBtn = document.getElementById('increaseBtn');
-            const calcBtn = document.getElementById('calcBtn');
-            const errorBox = document.getElementById('errorBox');
-
-            if (reduceBtn.disabled) return;
-
-            const currentForms = parseInt(document.getElementById('valForms').textContent) || 0;
-            const capacity = parseInt(document.getElementById('capacity').value) || 88;
-            const orders = document.getElementById('orders').value;
-
-            overshootHistory.push(currentOvershoot);
-
-            reduceBtn.disabled = true;
-            increaseBtn.disabled = true;
-            calcBtn.disabled = true;
-            errorBox.style.display = 'none';
-            reduceBtn.textContent = 'Searching...';
-
-            try {
-                const response = await fetch('/api/find_min_overshoot', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        capacity: capacity,
-                        orders: orders,
-                        current_overshoot: currentOvershoot,
-                        start_forms: currentForms
-                    })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    currentOvershoot = data.overshoot;
-                    await calculate();
-                } else {
-                    errorBox.textContent = data.message || 'Cannot reduce sheets further.';
-                    errorBox.style.display = 'block';
-                    overshootHistory.pop();
-                    // Восстанавливаем кнопки
-                    const parts = orders.trim().split(/\s+/).filter(s => s.length > 0);
-                    const numItems = parts.length;
-                    const minSheets = Math.ceil(numItems / capacity);
-                    updateButtonsState(currentForms, minSheets, false, false);
-                }
-            } catch (err) {
-                errorBox.textContent = "Error during reduction process.";
-                errorBox.style.display = 'block';
-                overshootHistory.pop();
-            } finally {
-                reduceBtn.textContent = '-1 Sheet';
-                const parts2 = orders.trim().split(/\s+/).filter(s => s.length > 0);
-                const numItems2 = parts2.length;
-                const minSheets2 = Math.ceil(numItems2 / capacity);
-                updateButtonsState(parseInt(document.getElementById('valForms').textContent) || currentForms, minSheets2, false, false);
-                calcBtn.disabled = false;
-            }
-        }
-
-        // +1 Sheet: откат к предыдущему значению overshoot из истории
-        async function increaseSheets() {
-            const increaseBtn = document.getElementById('increaseBtn');
-            if (increaseBtn.disabled) return;
-
-            if (overshootHistory.length === 0) return;
-
-            currentOvershoot = overshootHistory.pop();
-            await calculate();
-        }
-
-        // Остальные функции (closeApp, autoResize, события)
-        window.addEventListener('DOMContentLoaded', () => {
-            const ta = document.getElementById('orders');
-            autoResize(ta);
-            calculate();
-
-            const titleBar = document.getElementById('titleBar');
-            titleBar.addEventListener('mousedown', (e) => {
-                if (e.target.closest('.titlebar-controls')) return;
-                if (window.startDrag) {
-                    window.startDrag();
-                    return;
-                }
-            });
-        });
-
-        window.addEventListener('resize', () => {
-            const ta = document.getElementById('orders');
-            autoResize(ta);
-            if (window.updateWindowRegion) {
-                window.updateWindowRegion();
-            }
-        });
-
-        async function closeApp() {
-            if (window.closeAppNative) {
-                window.closeAppNative();
-            } else {
-                try { await fetch('/api/close', { method: 'POST' }); } catch (e) {}
-                window.close();
-            }
-        }
-    </script>
-</body>
-</html>`
-
-//________________________________________________________
 type FormBlock struct {
 	FormName     string `json:"form_name"`
 	FormNameHtml string `json:"form_name_html"`
 	CodeLine     string `json:"code_line"`
 }
 
-//________________________________________________________
 type ExtendedCalcResponse struct {
 	CalcResponse
 	FormBlocks []FormBlock `json:"form_blocks"`
 	Logs       string      `json:"logs"`
 }
 
-//________________________________________________________
-type MoveRequest struct {
-	Dx int `json:"dx"`
-	Dy int `json:"dy"`
-}
-
-//________________________________________________________
 type FindMinOvershootRequest struct {
 	Capacity         int     `json:"capacity"`
 	Orders           string  `json:"orders"`
@@ -599,7 +86,6 @@ type FindMinOvershootRequest struct {
 	StartForms       int     `json:"start_forms"`
 }
 
-//________________________________________________________
 type FindMinOvershootResponse struct {
 	Success   bool    `json:"success"`
 	Overshoot float64 `json:"overshoot"`
@@ -607,24 +93,18 @@ type FindMinOvershootResponse struct {
 }
 
 //________________________________________________________
-// Priority queue structures for D'Hondt allocation (from Algorithm 2)
+// Priority queue for D'Hondt allocation
 type dhondtItem struct {
 	index int
 	score float64
 	slots int
 }
-
 type dhondtPQ []*dhondtItem
 
-func (pq dhondtPQ) Len() int { return len(pq) }
-func (pq dhondtPQ) Less(i, j int) bool {
-	return pq[i].score > pq[j].score
-}
-func (pq dhondtPQ) Swap(i, j int) { pq[i], pq[j] = pq[j], pq[i] }
-
-func (pq *dhondtPQ) Push(x any) {
-	*pq = append(*pq, x.(*dhondtItem))
-}
+func (pq dhondtPQ) Len() int           { return len(pq) }
+func (pq dhondtPQ) Less(i, j int) bool { return pq[i].score > pq[j].score }
+func (pq dhondtPQ) Swap(i, j int)      { pq[i], pq[j] = pq[j], pq[i] }
+func (pq *dhondtPQ) Push(x any)        { *pq = append(*pq, x.(*dhondtItem)) }
 func (pq *dhondtPQ) Pop() any {
 	old := *pq
 	n := len(old)
@@ -634,24 +114,29 @@ func (pq *dhondtPQ) Pop() any {
 }
 
 //________________________________________________________
-// Global calculation cache
+// Global cache
 var calcCache = struct {
 	sync.RWMutex
 	m map[string]ExtendedCalcResponse
 }{m: make(map[string]ExtendedCalcResponse)}
 
 //________________________________________________________
-// Sets application window icon from settings/logo.png file on disk
+// Helper: decode JSON from request
+func decodeJSON(r *http.Request, v interface{}) error {
+	defer r.Body.Close()
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+//________________________________________________________
+// Icon setter (unchanged)
 func setIconFromPNGFile(hwnd uintptr, pngPath string) {
 	if runtime.GOOS != "windows" {
 		return
 	}
-
 	pngData, err := os.ReadFile(pngPath)
 	if err != nil {
 		return
 	}
-
 	size := len(pngData)
 	header := []byte{0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 32, 0, byte(size), byte(size >> 8), byte(size >> 16), byte(size >> 24), 22, 0, 0, 0}
 	icoPath := filepath.Join(os.TempDir(), fmt.Sprintf("temp_logo_%d.ico", time.Now().UnixNano()))
@@ -663,119 +148,24 @@ func setIconFromPNGFile(hwnd uintptr, pngPath string) {
 	user32 := syscall.NewLazyDLL("user32.dll")
 	loadImage := user32.NewProc("LoadImageW")
 	sendMessage := user32.NewProc("SendMessageW")
-
 	pathPtr, _ := syscall.UTF16PtrFromString(icoPath)
 	hIcon, _, _ := loadImage.Call(0, uintptr(unsafe.Pointer(pathPtr)), 1, 0, 0, 0x00000010)
 	if hIcon == 0 {
 		return
 	}
-
 	const WM_SETICON = 0x0080
 	sendMessage.Call(hwnd, WM_SETICON, 0, hIcon)
 	sendMessage.Call(hwnd, WM_SETICON, 1, hIcon)
 }
 
 //________________________________________________________
-// Main application entry point
-func main() {
-	execDir, err := os.Executable()
-	if err == nil {
-		baseDir := filepath.Dir(execDir)
-		splashPath := filepath.Join(baseDir, "settings", "splash.exe")
-		if _, err := os.Stat(splashPath); err == nil {
-			cmd := exec.Command(splashPath, "500")
-			cmd.Dir = filepath.Join(baseDir, "settings")
-			_ = cmd.Start()
-		}
-	}
-
-	go func() {
-		http.HandleFunc("/", serveUI)
-		http.HandleFunc("/api/calculate", handleCalc)
-		http.HandleFunc("/api/find_min_overshoot", handleFindMinOvershoot)
-		http.HandleFunc("/api/close", handleClose)
-		http.HandleFunc("/api/move", handleMove)
-		_ = http.ListenAndServe(serverPort, nil)
-	}()
-
-	time.Sleep(200 * time.Millisecond)
-
-	w := webview.New(false)
-	defer w.Destroy()
-
-	w.SetTitle("Layout-sheets-calc")
-
-	// Сначала делаем окно безрамочным
-	setupFramelessWindow(w)
-
-	// Теперь изменяем размер и позицию: Y=0, высота 95% экрана, X не трогаем
-	if runtime.GOOS == "windows" {
-		user32 := syscall.NewLazyDLL("user32.dll")
-		getSystemMetrics := user32.NewProc("GetSystemMetrics")
-		
-		// Получаем высоту экрана
-		screenHeight, _, _ := getSystemMetrics.Call(1) // SM_CYSCREEN = 1
-		if screenHeight > 0 {
-			newHeight := int(float64(screenHeight) * 0.95)
-			
-			// Получаем текущую позицию и размер окна
-			getWindowRect := user32.NewProc("GetWindowRect")
-			var rect struct {
-				Left, Top, Right, Bottom int32
-			}
-			hwnd := uintptr(w.Window())
-			getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
-			
-			// Оставляем X как есть (не меняем), Y ставим 0
-			currentX := rect.Left
-			currentWidth := rect.Right - rect.Left
-			
-			// Устанавливаем новую позицию и размер
-			setWindowPos := user32.NewProc("SetWindowPos")
-			const SWP_NOZORDER = 0x0004
-			
-			setWindowPos.Call(
-				hwnd,
-				0,
-				uintptr(currentX), // X не меняем
-				uintptr(0),        // Y = 0 (самый верх)
-				uintptr(currentWidth),
-				uintptr(newHeight),
-				uintptr(SWP_NOZORDER),
-			)
-			// Обновляем скруглённую область
-			updateRoundedRegion(w)
-		}
-	}
-
-	var logoPath string
-	if err == nil {
-		logoPath = filepath.Join(filepath.Dir(execDir), "settings", "logo.png")
-	} else {
-		logoPath = filepath.Join("settings", "logo.png")
-	}
-	setIconFromPNGFile(uintptr(w.Window()), logoPath)
-
-	w.Bind("startDrag", func() { dragWindow(w) })
-	w.Bind("updateWindowRegion", func() { updateRoundedRegion(w) })
-	w.Bind("closeAppNative", func() {
-		w.Destroy()
-		os.Exit(0)
-	})
-
-	w.Navigate("http://localhost" + serverPort)
-	w.Run()
-}
-
-//________________________________________________________
-// Native WebView2 frameless resizable window setup
+// Window setup functions (unchanged)
 func setupFramelessWindow(w webview.WebView) {
 	if runtime.GOOS != "windows" {
 		return
 	}
 	hwnd := uintptr(w.Window())
 	user32 := syscall.NewLazyDLL("user32.dll")
-
 	setWindowLongPtr := user32.NewProc("SetWindowLongPtrW")
 	if setWindowLongPtr.Find() != nil {
 		setWindowLongPtr = user32.NewProc("SetWindowLongA")
@@ -784,7 +174,6 @@ func setupFramelessWindow(w webview.WebView) {
 	if getWindowLongPtr.Find() != nil {
 		getWindowLongPtr = user32.NewProc("GetWindowLongA")
 	}
-
 	const GWL_STYLE = 0xFFFFFFF0
 	const WS_POPUP = 0x80000000
 	const WS_THICKFRAME = 0x00040000
@@ -795,12 +184,9 @@ func setupFramelessWindow(w webview.WebView) {
 	style, _, _ := getWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE))
 	newStyle := (style &^ 0x00C00000) | WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX
 	setWindowLongPtr.Call(hwnd, uintptr(GWL_STYLE), newStyle)
-
 	updateRoundedRegion(w)
 }
 
-//________________________________________________________
-// Updates rounded window shape region according to current window size
 func updateRoundedRegion(w webview.WebView) {
 	if runtime.GOOS != "windows" {
 		return
@@ -811,24 +197,17 @@ func updateRoundedRegion(w webview.WebView) {
 	createRoundRectRgn := gdi32.NewProc("CreateRoundRectRgn")
 	setWindowRgn := user32.NewProc("SetWindowRgn")
 	getWindowRect := user32.NewProc("GetWindowRect")
-
-	type rect struct {
-		Left, Top, Right, Bottom int32
-	}
+	type rect struct{ Left, Top, Right, Bottom int32 }
 	var rObj rect
 	getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
-
 	width := int(rObj.Right - rObj.Left)
 	height := int(rObj.Bottom - rObj.Top)
-
 	hrgn, _, _ := createRoundRectRgn.Call(0, 0, uintptr(width), uintptr(height), 16, 16)
 	if hrgn != 0 {
 		setWindowRgn.Call(hwnd, hrgn, 1)
 	}
 }
 
-//________________________________________________________
-// Native OS drag logic via Win32 API
 func dragWindow(w webview.WebView) {
 	if runtime.GOOS != "windows" {
 		return
@@ -837,23 +216,96 @@ func dragWindow(w webview.WebView) {
 	user32 := syscall.NewLazyDLL("user32.dll")
 	releaseCapture := user32.NewProc("ReleaseCapture")
 	sendMessage := user32.NewProc("SendMessageW")
-
 	const WM_NCLBUTTONDOWN = 0x00A1
 	const HTCAPTION = 2
-
 	releaseCapture.Call()
 	sendMessage.Call(hwnd, WM_NCLBUTTONDOWN, uintptr(HTCAPTION), 0)
 }
 
 //________________________________________________________
-// Serves main HTML UI
+// Main
+func main() {
+	execDir, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Cannot determine executable path:", err)
+		os.Exit(1)
+	}
+	baseDir := filepath.Dir(execDir)
+
+	// Загрузка HTML из папки settings
+	htmlPath := filepath.Join(baseDir, "settings", "index.html")
+	htmlData, err := os.ReadFile(htmlPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read index.html from %s: %v\n", htmlPath, err)
+		fmt.Fprintln(os.Stderr, "Please ensure settings/index.html exists next to the executable.")
+		os.Exit(1)
+	}
+	indexHTML = string(htmlData)
+
+	// Запуск splash-заставки, если есть
+	splashPath := filepath.Join(baseDir, "settings", "splash.exe")
+	if _, err := os.Stat(splashPath); err == nil {
+		cmd := exec.Command(splashPath, "500")
+		cmd.Dir = filepath.Join(baseDir, "settings")
+		_ = cmd.Start()
+	}
+
+	// HTTP-сервер
+	go func() {
+		http.HandleFunc("/", serveUI)
+		http.HandleFunc("/api/calculate", handleCalc)
+		http.HandleFunc("/api/find_min_overshoot", handleFindMinOvershoot)
+		http.HandleFunc("/api/close", handleClose)
+		_ = http.ListenAndServe(serverPort, nil)
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+	w := webview.New(false)
+	defer w.Destroy()
+	w.SetTitle("Layout-sheets-calc")
+	setupFramelessWindow(w)
+
+	// Установка размера окна: Y=0, высота 95% экрана, X сохраняется
+	if runtime.GOOS == "windows" {
+		user32 := syscall.NewLazyDLL("user32.dll")
+		getSystemMetrics := user32.NewProc("GetSystemMetrics")
+		screenHeight, _, _ := getSystemMetrics.Call(1)
+		if screenHeight > 0 {
+			newHeight := int(float64(screenHeight) * 0.95)
+			getWindowRect := user32.NewProc("GetWindowRect")
+			var rect struct{ Left, Top, Right, Bottom int32 }
+			hwnd := uintptr(w.Window())
+			getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rect)))
+			currentX := rect.Left
+			currentWidth := rect.Right - rect.Left
+			setWindowPos := user32.NewProc("SetWindowPos")
+			const SWP_NOZORDER = 0x0004
+			setWindowPos.Call(hwnd, 0, uintptr(currentX), uintptr(0), uintptr(currentWidth), uintptr(newHeight), uintptr(SWP_NOZORDER))
+			updateRoundedRegion(w)
+		}
+	}
+
+	// Установка иконки
+	logoPath := filepath.Join(baseDir, "settings", "logo.png")
+	setIconFromPNGFile(uintptr(w.Window()), logoPath)
+
+	w.Bind("startDrag", func() { dragWindow(w) })
+	w.Bind("updateWindowRegion", func() { updateRoundedRegion(w) })
+	w.Bind("closeAppNative", func() {
+		w.Destroy()
+		os.Exit(0)
+	})
+	w.Navigate("http://localhost" + serverPort)
+	w.Run()
+}
+
+//________________________________________________________
+// HTTP handlers
 func serveUI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(indexHTML))
 }
 
-//________________________________________________________
-// Handles application shutdown request
 func handleClose(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -868,49 +320,7 @@ func handleClose(w http.ResponseWriter, r *http.Request) {
 }
 
 //________________________________________________________
-// Legacy HTTP drag API
-func handleMove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req MoveRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
-		return
-	}
-
-	if runtime.GOOS == "windows" {
-		user32 := syscall.NewLazyDLL("user32.dll")
-		getForegroundWindow := user32.NewProc("GetForegroundWindow")
-		getWindowRect := user32.NewProc("GetWindowRect")
-		setWindowPos := user32.NewProc("SetWindowPos")
-
-		hwnd, _, _ := getForegroundWindow.Call()
-		if hwnd != 0 {
-			type rect struct {
-				Left, Top, Right, Bottom int32
-			}
-			var rObj rect
-			getWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&rObj)))
-
-			const swpNoSize = 0x0001
-			const swpNoZOrder = 0x0004
-			const swpFrameChanged = 0x0020
-
-			newX := int(rObj.Left) + req.Dx
-			newY := int(rObj.Top) + req.Dy
-
-			setWindowPos.Call(hwnd, 0, uintptr(newX), uintptr(newY), 0, 0, uintptr(swpNoSize|swpNoZOrder|swpFrameChanged))
-		}
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"success":true}`))
-}
-
-//________________________________________________________
-// Improved calculateHeuristic with priority queue (from Algorithm 2)
+// Calculation core
 func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]int, []int, []string) {
 	var logs []string
 	M := len(items)
@@ -934,38 +344,34 @@ func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]in
 			}
 		}
 		if len(remaining) == 0 {
-			logs = append(logs, fmt.Sprintf("\nDONE: All %d unique items successfully placed on sheets.", M))
+			logs = append(logs, fmt.Sprintf("\nDONE: All %d items placed.", M))
 			break
 		}
 		if iteration > 1000 {
-			logs = append(logs, "\nSAFETY STOP: Reached 1000 calculation cycles.")
+			logs = append(logs, "\nSAFETY STOP: 1000 cycles.")
 			break
 		}
 
 		logs = append(logs, fmt.Sprintf("\n--- CYCLE %d ---", iteration))
-		logs = append(logs, fmt.Sprintf("Items awaiting production: %d", len(remaining)))
+		logs = append(logs, fmt.Sprintf("Items left: %d", len(remaining)))
 
 		slots := make([]int, M)
 		unallocated := capacity
-
 		pq := make(dhondtPQ, 0, len(remaining))
 
-		// Pre-allocate 1 slot per item if possible
 		if unallocated >= len(remaining) {
 			for _, i := range remaining {
 				slots[i] = 1
 				unallocated--
 			}
-			logs = append(logs, "Pre-allocated 1 slot to all remaining items.")
+			logs = append(logs, "Pre-allocated 1 slot per item.")
 		} else {
-			logs = append(logs, "Warning: Capacity is less than remaining items. Some items will wait for next sheet.")
+			logs = append(logs, "Warning: capacity < items left.")
 		}
 
-		// Initialize priority queue for remaining slots
 		for _, i := range remaining {
 			need := items[i].Quantity - produced[i]
-			maxAllowedQty := maxAllowed[i]
-			maxRemainingOvr := maxAllowedQty - produced[i]
+			maxRemainingOvr := maxAllowed[i] - produced[i]
 			if slots[i]+1 <= maxRemainingOvr {
 				score := float64(need) / float64(slots[i]+1)
 				pq = append(pq, &dhondtItem{index: i, score: score, slots: slots[i]})
@@ -973,27 +379,23 @@ func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]in
 		}
 		heap.Init(&pq)
 
-		// Distribute remaining slots using D'Hondt method
 		for unallocated > 0 && pq.Len() > 0 {
 			top := heap.Pop(&pq).(*dhondtItem)
 			top.slots++
 			slots[top.index]++
 			unallocated--
 
-			maxAllowedQty := maxAllowed[top.index]
-			maxRemainingOvr := maxAllowedQty - produced[top.index]
+			maxRemainingOvr := maxAllowed[top.index] - produced[top.index]
 			if top.slots+1 <= maxRemainingOvr {
 				need := items[top.index].Quantity - produced[top.index]
 				top.score = float64(need) / float64(top.slots+1)
 				heap.Push(&pq, top)
 			}
 		}
-
 		if unallocated > 0 {
-			logs = append(logs, "Stopped allocation early: overshoot constraints prevent filling remaining slots.")
+			logs = append(logs, "Stopped allocation: overshoot constraints.")
 		}
 
-		// Log allocation
 		var allocLog strings.Builder
 		for i, s := range slots {
 			if s > 0 {
@@ -1001,13 +403,10 @@ func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]in
 				allocLog.WriteString(fmt.Sprintf("[Pg %d : need %d → %d slots] ", items[i].PageNum, need, s))
 			}
 		}
-		logs = append(logs, fmt.Sprintf("Slot distribution (%d places max):", capacity))
+		logs = append(logs, fmt.Sprintf("Slot distribution (%d places):", capacity))
 		logs = append(logs, "  "+allocLog.String())
 
-		// Determine print run R
-		rLowerBound := 0
-		rUpperBound := math.MaxInt32
-
+		rLowerBound, rUpperBound := 0, math.MaxInt32
 		for i, s := range slots {
 			if s > 0 {
 				need := items[i].Quantity - produced[i]
@@ -1015,40 +414,35 @@ func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]in
 				if reqMin > rLowerBound {
 					rLowerBound = reqMin
 				}
-				maxAllowedQty := maxAllowed[i]
-				maxRemainingOvr := maxAllowedQty - produced[i]
+				maxRemainingOvr := maxAllowed[i] - produced[i]
 				maxAllowedR := maxRemainingOvr / s
 				if maxAllowedR < rUpperBound {
 					rUpperBound = maxAllowedR
 				}
 			}
 		}
-
 		R := 1
 		if rLowerBound <= rUpperBound {
 			R = rLowerBound
-			logs = append(logs, fmt.Sprintf("Can complete all allocated items. R = %d", R))
+			logs = append(logs, fmt.Sprintf("Can complete all, R = %d", R))
 		} else {
 			R = rUpperBound
 			if R <= 0 {
 				R = 1
 			}
-			logs = append(logs, fmt.Sprintf("Cannot complete all items perfectly. Bottleneck limits R to %d", R))
+			logs = append(logs, fmt.Sprintf("Bottleneck limits R to %d", R))
 		}
 
-		// Apply production
 		for i, s := range slots {
 			if s > 0 {
 				produced[i] += R * s
 			}
 		}
-
 		forms = append(forms, slots)
 		runs = append(runs, R)
 		iteration++
 	}
 
-	// Transpose layout matrix
 	layouts := make([][]int, M)
 	for i := 0; i < M; i++ {
 		layouts[i] = make([]int, len(forms))
@@ -1056,171 +450,49 @@ func calculateHeuristic(items []OrderItem, capacity int, maxOvr float64) ([][]in
 			layouts[i][j] = forms[j][i]
 		}
 	}
-
 	return layouts, runs, logs
 }
 
-//________________________________________________________
-// Core calculation logic (shared by handleCalc and findMinOvershoot)
 func calculateCore(req CalcRequest) (ExtendedCalcResponse, error) {
 	parts := strings.Fields(req.Orders)
 	var items []OrderItem
 	var orders []int
 	for _, p := range parts {
-		subParts := strings.Split(p, "*")
-		if len(subParts) == 2 {
-			pageNum, err1 := strconv.Atoi(subParts[0])
-			qty, err2 := strconv.Atoi(subParts[1])
-			if err1 == nil && err2 == nil && qty > 0 {
+		sub := strings.Split(p, "*")
+		if len(sub) == 2 {
+			pageNum, e1 := strconv.Atoi(sub[0])
+			qty, e2 := strconv.Atoi(sub[1])
+			if e1 == nil && e2 == nil && qty > 0 {
 				items = append(items, OrderItem{PageNum: pageNum, Quantity: qty})
 				orders = append(orders, qty)
 			}
 		}
 	}
-
 	if len(orders) == 0 {
-		return ExtendedCalcResponse{}, fmt.Errorf("No valid orders found")
+		return ExtendedCalcResponse{}, fmt.Errorf("No valid orders")
 	}
-
-	bestLayouts, bestR, traceLogs := calculateHeuristic(items, req.Capacity, req.OvershootPct)
-	logsStr := strings.Join(traceLogs, "\n")
-
-	if len(bestR) == 0 {
-		return ExtendedCalcResponse{}, fmt.Errorf("Could not find layout configuration")
+	layouts, runs, logs := calculateHeuristic(items, req.Capacity, req.OvershootPct)
+	if len(runs) == 0 {
+		return ExtendedCalcResponse{}, fmt.Errorf("No layout found")
 	}
-
-	resp := buildResponse(bestR, bestLayouts, items, req.Capacity)
+	resp := buildResponse(runs, layouts, items, req.Capacity)
 	resp.TotalOvershoot = ((float64(resp.TotalProduced) - float64(resp.TotalOrdered)) / float64(resp.TotalOrdered)) * 100.0
-	resp.UpdatedOvershoot = req.OvershootPct
-	resp.Logs = logsStr
-
+	resp.Logs = strings.Join(logs, "\n")
 	return resp, nil
 }
 
-//________________________________________________________
-// Handles layout calculation API endpoint (with caching)
-func handleCalc(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req CalcRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON format"})
-		return
-	}
-
-	// Check cache
-	cacheKey := fmt.Sprintf("%f|%d|%s", req.OvershootPct, req.Capacity, req.Orders)
-	calcCache.RLock()
-	cached, found := calcCache.m[cacheKey]
-	calcCache.RUnlock()
-	if found {
-		sendJSON(w, cached)
-		return
-	}
-
-	resp, err := calculateCore(req)
-	if err != nil {
-		sendJSON(w, ExtendedCalcResponse{
-			CalcResponse: CalcResponse{
-				Success: false,
-				Message: err.Error(),
-			},
-		})
-		return
-	}
-
-	// Store in cache
-	calcCache.Lock()
-	calcCache.m[cacheKey] = resp
-	calcCache.Unlock()
-
-	sendJSON(w, resp)
-}
-
-//________________________________________________________
-// Handler for finding minimal overshoot that reduces number of forms (binary search)
-func handleFindMinOvershoot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req FindMinOvershootRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Invalid JSON format"})
-		return
-	}
-
-	// Check that startForms > minimum possible sheets
-	parts := strings.Fields(req.Orders)
-	numItems := len(parts)
-	minSheets := int(math.Ceil(float64(numItems) / float64(req.Capacity)))
-	if req.StartForms <= minSheets {
-		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Already at minimum sheets"})
-		return
-	}
-
-	// Binary search for minimal integer overshoot (> current) that reduces forms
-	low := int(req.CurrentOvershoot) + 1
-	high := 10000 // maximum overshoot percentage
-	best := -1
-
-	for low <= high {
-		mid := (low + high) / 2
-		calcReq := CalcRequest{
-			OvershootPct: float64(mid),
-			Capacity:     req.Capacity,
-			Orders:       req.Orders,
-		}
-
-		resp, err := calculateCore(calcReq)
-		if err != nil {
-			sendJSON(w, FindMinOvershootResponse{Success: false, Message: err.Error()})
-			return
-		}
-
-		if resp.TotalForms < req.StartForms {
-			// Successfully reduced forms
-			best = mid
-			high = mid - 1
-		} else {
-			low = mid + 1
-		}
-	}
-
-	if best == -1 {
-		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Cannot reduce sheets further with current algorithm"})
-		return
-	}
-
-	sendJSON(w, FindMinOvershootResponse{Success: true, Overshoot: float64(best)})
-}
-
-//________________________________________________________
-// Constructs structured response payload
 func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) ExtendedCalcResponse {
 	totalSheets := 0
 	for _, r := range R {
 		totalSheets += r
 	}
-
 	var itemReports []ItemReport
-	totalOrdered := 0
-	totalProduced := 0
-
-	var printCodes []string
-	var formNames []string
+	totalOrdered, totalProduced := 0, 0
 	var formBlocks []FormBlock
 
-	// Используем strings.Builder для эффективной конкатенации
 	for j := 0; j < len(R); j++ {
 		fName := fmt.Sprintf("Sheet %d %d", j+1, R[j])
 		fNameHtml := fmt.Sprintf("Sheet %d <span class=\"sheet-badge\">%d</span> Pcs", j+1, R[j])
-		formNames = append(formNames, fName)
-
 		var b strings.Builder
 		for i := 0; i < len(items); i++ {
 			if layouts[i][j] > 0 {
@@ -1228,7 +500,6 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
 			}
 		}
 		line := strings.TrimSpace(b.String())
-		printCodes = append(printCodes, line)
 		formBlocks = append(formBlocks, FormBlock{
 			FormName:     fName,
 			FormNameHtml: fNameHtml,
@@ -1238,31 +509,25 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
 
 	for i, item := range items {
 		produced := 0
-		var slotsParts []string
 		var slotsList []int
 		for j := 0; j < len(R); j++ {
 			slots := layouts[i][j]
 			produced += slots * R[j]
-			slotsParts = append(slotsParts, fmt.Sprintf("%d", slots))
 			slotsList = append(slotsList, slots)
 		}
-
 		totalOrdered += item.Quantity
 		totalProduced += produced
 		overshootPct := ((float64(produced) - float64(item.Quantity)) / float64(item.Quantity)) * 100.0
-
 		itemReports = append(itemReports, ItemReport{
 			PageNum:   item.PageNum,
 			Target:    item.Quantity,
 			Produced:  produced,
 			Overshoot: overshootPct,
-			SlotsStr:  strings.Join(slotsParts, " | "),
+			SlotsStr:  strings.Trim(strings.Join(strings.Fields(fmt.Sprint(slotsList)), " | "), "[]"),
 			SlotsList: slotsList,
 		})
 	}
-
 	globalOvershoot := ((float64(totalProduced) - float64(totalOrdered)) / float64(totalOrdered)) * 100.0
-
 	base := CalcResponse{
 		Success:        true,
 		TotalSheets:    totalSheets,
@@ -1272,10 +537,7 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
 		TotalOrdered:   totalOrdered,
 		TotalProduced:  totalProduced,
 		TotalOvershoot: globalOvershoot,
-		PrintCodes:     printCodes,
-		FormNames:      formNames,
 	}
-
 	return ExtendedCalcResponse{
 		CalcResponse: base,
 		FormBlocks:   formBlocks,
@@ -1283,7 +545,82 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
 }
 
 //________________________________________________________
-// Helper function to send JSON response
+// HTTP API handlers
+func handleCalc(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req CalcRequest
+	if err := decodeJSON(r, &req); err != nil {
+		sendJSON(w, CalcResponse{Success: false, Message: "Invalid JSON"})
+		return
+	}
+	cacheKey := fmt.Sprintf("%f|%d|%s", req.OvershootPct, req.Capacity, req.Orders)
+	calcCache.RLock()
+	cached, found := calcCache.m[cacheKey]
+	calcCache.RUnlock()
+	if found {
+		sendJSON(w, cached)
+		return
+	}
+	resp, err := calculateCore(req)
+	if err != nil {
+		sendJSON(w, ExtendedCalcResponse{
+			CalcResponse: CalcResponse{Success: false, Message: err.Error()},
+		})
+		return
+	}
+	calcCache.Lock()
+	calcCache.m[cacheKey] = resp
+	calcCache.Unlock()
+	sendJSON(w, resp)
+}
+
+func handleFindMinOvershoot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req FindMinOvershootRequest
+	if err := decodeJSON(r, &req); err != nil {
+		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Invalid JSON"})
+		return
+	}
+	parts := strings.Fields(req.Orders)
+	minSheets := int(math.Ceil(float64(len(parts)) / float64(req.Capacity)))
+	if req.StartForms <= minSheets {
+		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Already at minimum"})
+		return
+	}
+	low, high := int(req.CurrentOvershoot)+1, 10000
+	best := -1
+	for low <= high {
+		mid := (low + high) / 2
+		calcReq := CalcRequest{
+			OvershootPct: float64(mid),
+			Capacity:     req.Capacity,
+			Orders:       req.Orders,
+		}
+		resp, err := calculateCore(calcReq)
+		if err != nil {
+			sendJSON(w, FindMinOvershootResponse{Success: false, Message: err.Error()})
+			return
+		}
+		if resp.TotalForms < req.StartForms {
+			best = mid
+			high = mid - 1
+		} else {
+			low = mid + 1
+		}
+	}
+	if best == -1 {
+		sendJSON(w, FindMinOvershootResponse{Success: false, Message: "Cannot reduce further"})
+		return
+	}
+	sendJSON(w, FindMinOvershootResponse{Success: true, Overshoot: float64(best)})
+}
+
 func sendJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
