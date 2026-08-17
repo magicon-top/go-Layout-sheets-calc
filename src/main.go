@@ -1126,7 +1126,7 @@ func buildResponse(R []int, layouts [][]int, items []OrderItem, capacity int) Ex
 
 	for j := 0; j < len(R); j++ {
 		fName := fmt.Sprintf("Sheet %d %d", j+1, R[j])
-		fNameHtml := fmt.Sprintf("Sheet %d <span class=\"sheet-badge\">%d</span> Order quantity Pcs", j+1, R[j])
+		fNameHtml := fmt.Sprintf("Sheet %d <span class=\"sheet-badge\">%d</span> Pcs", j+1, R[j])
 		formNames = append(formNames, fName)
 		var buffer bytes.Buffer
 		for i := 0; i < len(items); i++ {
