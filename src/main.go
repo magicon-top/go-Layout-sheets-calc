@@ -522,7 +522,7 @@ const indexHTML = `<!DOCTYPE html>
                 let newOvershoot = currentOvershoot + 1;
                 let found = false;
 
-                while (newOvershoot <= 100) {
+                while (newOvershoot <= 10000) {
                     const payload = { overshoot: newOvershoot, capacity, orders };
                     const data = await fetchCalculation(payload);
                     if (!data.success) {
