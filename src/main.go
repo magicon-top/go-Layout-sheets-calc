@@ -210,7 +210,7 @@ const indexHTML = `<!DOCTYPE html>
         <div class="header-panel">
             <div class="top-row">
                 <div class="input-group" style="flex-shrink: 0;">
-                    <label>Capacity</label>
+                    <label>Items per sheet</label>
                     <input type="number" id="capacity" value="88" min="1">
                 </div>
                 <div class="input-group full-width">
