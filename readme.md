@@ -27,6 +27,4 @@ For the application to run successfully, it requires a specific folder structure
 ├── 📄 main.exe                 # Your compiled Go application
 └── 📁 settings                 # Required settings directory
     ├── 📄 index.html           # Required: The frontend UI web page
-    ├── 📄 logo.png             # Required: Application icon (converted to .ico automatically)
-    └── 📄 splash.exe           # Optional: A splash screen to show while loading
 ```
