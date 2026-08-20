@@ -25,7 +25,7 @@ For the application to run successfully, it requires a specific folder structure
 
 ```text
 📁 Project Root
-├── 📄 maingo-Layout-sheets-calc.exe                 # Your compiled Go application
+├── 📄 main.exe                 # Your compiled Go application
 └── 📁 settings                 # Required settings directory
     ├── 📄 index.html           # Required: The frontend UI web page
 ```
