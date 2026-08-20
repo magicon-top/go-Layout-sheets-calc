@@ -17,8 +17,6 @@ The app is built using Go and `webview2`, combining a fast, concurrent backend w
 ## Prerequisites
 
 - **OS:** Windows only (uses Windows-specific `syscall` for window management).
-- **Go:** Version 1.18 or higher.
-- **WebView2 Runtime:** Usually pre-installed on modern Windows 10/11 systems.
 
 ## Project Structure
 
