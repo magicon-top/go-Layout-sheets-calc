@@ -3,7 +3,7 @@
 Layout Sheets Calculator is a Windows desktop application designed to optimize print layouts. It calculates the most efficient way to arrange ordered items (pages/designs) onto print sheets to minimize overproduction (overshoot).
 
 The app is built using Go and `webview2`, combining a fast, concurrent backend with a modern, frameless HTML/JS frontend.
-![Application Screenshot](settings/screenshot.png)
+![Application Screenshot](bin/settings/screenshot.png)
 
 ## Features
 
