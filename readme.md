@@ -4,6 +4,7 @@ Layout Sheets Calculator is a Windows desktop application designed to optimize p
 
 The app is built using Go and `webview2`, combining a fast, concurrent backend with a modern, frameless HTML/JS frontend.
 
+![Application Screenshot](bin/settings/screenshot2.jpg)
 ![Application Screenshot](bin/settings/screenshot.png)
 
 ## Features
